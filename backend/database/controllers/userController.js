@@ -1,21 +1,20 @@
-const User = require("../models/User");
+import { findAll, findByPk } from "../models/User";
 
-// GET all users (publicly accessible)
-exports.getAllUsers = async (req, res) => {
+
+export async function getAllUsers(req, res) {
 	try {
-		const users = await User.findAll({
-			attributes: { exclude: ["password"] }, // Don't send passwords back
+		const users = await findAll({
+			attributes: { exclude: ["password"] }, 
 		});
 		res.status(200).json(users);
 	} catch (error) {
 		res.status(500).json({ error: error.message });
 	}
-};
+}
 
-// GET a single user by ID (publicly accessible)
-exports.getUserById = async (req, res) => {
+export async function getUserById(req, res) {
 	try {
-		const user = await User.findByPk(req.params.id, {
+		const user = await findByPk(req.params.id, {
 			attributes: { exclude: ["password"] },
 		});
 		if (user) {
@@ -26,4 +25,4 @@ exports.getUserById = async (req, res) => {
 	} catch (error) {
 		res.status(500).json({ error: error.message });
 	}
-};
+}
