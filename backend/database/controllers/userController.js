@@ -1,10 +1,10 @@
-import { findAll, findByPk } from "../models/User";
+import User from "../models/user.model.js";
 
 
 export async function getAllUsers(req, res) {
 	try {
-		const users = await findAll({
-			attributes: { exclude: ["password"] }, 
+		const users = await User.findAll({
+			attributes: { exclude: ["password"] },
 		});
 		res.status(200).json(users);
 	} catch (error) {
@@ -14,7 +14,7 @@ export async function getAllUsers(req, res) {
 
 export async function getUserById(req, res) {
 	try {
-		const user = await findByPk(req.params.id, {
+		const user = await User.findByPk(req.params.id, {
 			attributes: { exclude: ["password"] },
 		});
 		if (user) {

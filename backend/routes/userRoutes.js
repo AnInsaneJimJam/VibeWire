@@ -1,8 +1,9 @@
-const express = require("express");
-const router = express.Router();
-const { getAllUsers, getUserById } = require("../controllers/userController");
+import { Router } from "express";
+const router = Router();
+import { getAllUsers, getUserById } from "../controllers/userController";
+import protect from "../middleware/authMiddleware";
 
-router.get("/", getAllUsers);
-router.get("/:id", getUserById);
+router.get("/",protect, getAllUsers);
+router.get("/:id",protect, getUserById);
 
-module.exports = router;
+export default router;
