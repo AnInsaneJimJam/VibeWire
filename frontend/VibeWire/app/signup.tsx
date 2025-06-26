@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 
 export default function SignupScreen() {
   const [formData, setFormData] = useState({
@@ -22,6 +24,7 @@ export default function SignupScreen() {
     password: '',
     confirmPassword: '',
   });
+  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
@@ -30,6 +33,28 @@ export default function SignupScreen() {
       [field]: value
     }));
   };
+
+    const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Permission denied', 'We need access to your camera roll to select a photo.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setProfileImage(result.assets[0].uri);
+    }
+  };
+  const removeImage = () => {
+  setProfileImage(null);
+};
 
   const validateForm = () => {
     const { name, phoneNumber, password, confirmPassword } = formData;
@@ -82,6 +107,7 @@ export default function SignupScreen() {
           name: formData.name,
           bio: formData.bio,
           password: formData.password,
+          profileImage: profileImage || '',
         }
       });
       
@@ -116,6 +142,26 @@ export default function SignupScreen() {
 
           {/* Form */}
           <View style={styles.form}>
+            {/* 👤 Profile Picture Picker */}
+            <View style={styles.profilePicRow}>
+  <TouchableOpacity onPress={pickImage}>
+    {profileImage ? (
+      <Image source={{ uri: profileImage }} style={styles.profilePic} />
+    ) : (
+      <View style={styles.placeholderPic}>
+        <Text style={styles.placeholderText}>+ Add Photo</Text>
+      </View>
+    )}
+  </TouchableOpacity>
+
+  {profileImage && (
+    <TouchableOpacity onPress={removeImage} style={styles.removeButton}>
+      <Text style={styles.removeButtonText}>✕</Text>
+    </TouchableOpacity>
+  )}
+</View>
+
+          
             {/* Name Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Full Name</Text>
@@ -244,6 +290,52 @@ const styles = StyleSheet.create({
   form: {
     paddingHorizontal: 20,
   },
+  profilePicContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  profilePic: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: '#6C5CE7',
+  },
+  placeholderPic: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#F0F0F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#CCC',
+  },
+  placeholderText: {
+    color: '#999',
+    fontSize: 14,
+  },
+  profilePicRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginBottom: 20,
+  gap: 10, // or use marginLeft inside child if gap unsupported
+},
+removeButton: {
+  width: 30,
+  height: 30,
+  borderRadius: 15,
+  backgroundColor: '#E17055',
+  justifyContent: 'center',
+  alignItems: 'center',
+},
+removeButtonText: {
+  color: '#fff',
+  fontWeight: 'bold',
+  fontSize: 16,
+},
+
   inputGroup: {
     marginBottom: 20,
   },

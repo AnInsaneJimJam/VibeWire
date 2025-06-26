@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     illustrationImage: {
   width: 200,
   height: 200,
-  marginBottom: 20,
+  marginBottom: 5,
   resizeMode: 'contain',
 },
 
