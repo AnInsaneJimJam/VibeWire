@@ -7,7 +7,7 @@ import userRoutes from "./routes/userRoute.js";
 import authRoutes from "..database/routes/authRoute.js";
 import { connectToNeo4j } from "./config/neo4j.js";
 import connectionRoutes from "./routes/connectionRoute.js";
-
+import hangoutRoutes from './routes/hangoutRoute.js'
 
 const app = express();
 const PORT =  3000;
@@ -17,6 +17,8 @@ app.use(express.json());
 app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/connections", connectionRoutes);
+app.use('/api/hangouts', hangoutRoutes);
+
 async function startServer() {
 	try {
 		await sequelize.sync({ alter: true }); 
