@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
+import neo4jDriver from "../config/neo4j.js"
 
 const generateToken = (id) => {
 	return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -9,6 +10,7 @@ const generateToken = (id) => {
 };
 
 export const signup = async (req, res) => {
+	const session = neo4jDriver.session();
 	try {
 		const { name, phoneNumber, bio, password } = req.body;
 
@@ -36,6 +38,11 @@ export const signup = async (req, res) => {
 			password,
 		});
 
+		await session.run(
+            'CREATE (u:User {userId: $userId, name: $name})',
+            { userId: newUser.id, name: newUser.name }
+        );
+
 		if (newUser) {
 			const token = generateToken(newUser.id);
 
@@ -52,7 +59,9 @@ export const signup = async (req, res) => {
 		}
 	} catch (error) {
 		res.status(500).json({ message: "Server Error", error: error.message });
-	}
+	} finally {
+        await session.close(); // **Always close the session**
+    }
 };
 
 
