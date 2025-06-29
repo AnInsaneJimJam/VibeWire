@@ -1,6 +1,6 @@
 import express from "express";
 import protect from "../middleware/authMiddleware.js";
-import { createHangout, getMyInvites, respondToInvite, approveInvite } from "../controllers/hangoutController.js";
+import { createHangout, getMyInvites, respondToInvite, approveInvite } from "../database/controllers/hangoutController.js";
 
 const router = express.Router();
 

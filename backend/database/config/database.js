@@ -1,4 +1,5 @@
 import { Sequelize } from "sequelize";
+import neo4j from "neo4j-driver";
 import 'dotenv/config';
 
 const uri = process.env.NEO4J_URI;
@@ -24,11 +25,11 @@ const sequelize = new Sequelize(
 
 export const connectToNeo4j = async () => {
     try {
-        await driver.verifyConnectivity();
+        await neo4jDriver.verifyConnectivity();
         console.log("Successfully connected to Neo4j.");
     } catch (error) {
         console.error("Could not connect to Neo4j.", error);
-        await driver.close();
+        await neo4jDriver.close();
         process.exit(1);
     }
 };

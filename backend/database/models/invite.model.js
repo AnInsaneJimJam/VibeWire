@@ -19,6 +19,33 @@ const Invite = sequelize.define(
             ),
             allowNull: false,
         },
+        // Foreign key for the hangout this invite is for
+        hangoutId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'hangouts',
+                key: 'id'
+            }
+        },
+        // Foreign key for the user who sent the invite
+        senderId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'users',
+                key: 'id'
+            }
+        },
+        // Foreign key for the user who received the invite
+        recipientId: {
+            type: DataTypes.INTEGER,
+            allowNull: false,
+            references: {
+                model: 'users',
+                key: 'id'
+            }
+        },
         // Foreign key for the user who needs to approve this (for 2nd-degree invites)
         approverId: {
             type: DataTypes.INTEGER,

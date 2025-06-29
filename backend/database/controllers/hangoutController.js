@@ -1,5 +1,5 @@
 import sequelize from "../config/database.js";
-import neo4jDriver from "../config/neo4j.js";
+import { neo4jDriver } from "../config/database.js";
 import Hangout from "../models/hangout.model.js";
 import Invite from "../models/invite.model.js";
 import User from "../models/user.model.js";

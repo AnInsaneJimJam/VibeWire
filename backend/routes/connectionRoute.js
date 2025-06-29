@@ -1,5 +1,5 @@
 import express from "express";
-import { addConnections } from "../database/controllers/connectionController.js";
+import { addConnections, getConnectionsGraph } from "../database/controllers/connectionController.js";
 import protect from "../middleware/authMiddleware.js";
 
 const router = express.Router();

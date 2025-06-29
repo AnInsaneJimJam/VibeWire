@@ -1,4 +1,4 @@
-import neo4jDriver from "../config/neo4j.js";
+import { neo4jDriver } from "../config/database.js";
 
 /**
  * @desc    Create friendships for the logged-in user
