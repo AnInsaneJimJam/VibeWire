@@ -13,6 +13,7 @@ export const signup = async (req, res) => {
 	const session = neo4jDriver.session();
 	try {
 		const { name, phoneNumber, bio, password } = req.body;
+		const profileImage = req.file ? req.file.path : null;
 
 		if (!name || !phoneNumber || !password) {
 			return res
@@ -36,6 +37,7 @@ export const signup = async (req, res) => {
 			phoneNumber,
 			bio,
 			password,
+			profileImage,
 		});
 
 		await session.run(
