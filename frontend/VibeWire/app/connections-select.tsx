@@ -1,0 +1,392 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
+  ScrollView,
+  Alert,
+} from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+
+interface Connection {
+  id: string;
+  name: string;
+  bio: string;
+  image: string;
+  degree: number;
+  bhawan: string;
+  year: string;
+  course: string;
+  mutualConnections?: number;
+}
+
+const connections: Connection[] = [
+  {
+    id: '1',
+    name: 'Arpit Agarwal',
+    bio: 'Computer Science student passionate about AI and Machine Learning',
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Rajiv Bhawan',
+    year: '3rd Year',
+    course: 'B.Tech Computer Science'
+  },
+  {
+    id: '2',
+    name: 'Priya Patel',
+    bio: 'Electronics Engineering student, loves robotics and innovation',
+    image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Sarojini Bhawan',
+    year: '2nd Year',
+    course: 'B.Tech Electronics'
+  },
+  {
+    id: '3',
+    name: 'Rohit Gupta',
+    bio: 'Mechanical Engineering student with interest in automotive design',
+    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face',
+    degree: 2,
+    mutualConnections: 3,
+    bhawan: 'Jawahar Bhawan',
+    year: '1st Year',
+    course: 'B.Tech Mechanical'
+  },
+  {
+    id: '4',
+    name: 'Sneha Reddy',
+    bio: 'Chemical Engineering student aspiring to work in sustainable energy',
+    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Kasturba Bhawan',
+    year: '4th Year',
+    course: 'B.Tech Chemical'
+  },
+  {
+    id: '5',
+    name: 'Vikram Singh',
+    bio: 'Civil Engineering student, interested in infrastructure development',
+    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face',
+    degree: 2,
+    mutualConnections: 7,
+    bhawan: 'Ravindra Bhawan',
+    year: '3rd Year',
+    course: 'B.Tech Civil'
+  },
+  {
+    id: '6',
+    name: 'Ananya Iyer',
+    bio: 'Architecture student with passion for sustainable design',
+    image: 'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Kasturba Bhawan',
+    year: '2nd Year',
+    course: 'B.Arch'
+  },
+  {
+    id: '7',
+    name: 'Kartik Agarwal',
+    bio: 'Metallurgy Engineering student interested in materials science',
+    image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop&crop=face',
+    degree: 2,
+    mutualConnections: 2,
+    bhawan: 'Rajiv Bhawan',
+    year: '3rd Year',
+    course: 'B.Tech Metallurgy'
+  },
+  {
+    id: '8',
+    name: 'Kavya Nair',
+    bio: 'Biotechnology student passionate about genetic engineering research',
+    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Himalaya Bhawan',
+    year: '2nd Year',
+    course: 'B.Tech Biotechnology'
+  },
+  {
+    id: '9',
+    name: 'Aaditya Mehta',
+    bio: 'Electrical Engineering student working on renewable energy projects',
+    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face',
+    degree: 1,
+    bhawan: 'Jawahar Bhawan',
+    year: '4th Year',
+    course: 'B.Tech Electrical'
+  },
+  {
+    id: '10',
+    name: 'Riya Sharma',
+    bio: 'Production Engineering student interested in automation and robotics',
+    image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
+    degree: 2,
+    mutualConnections: 5,
+    bhawan: 'Sarojini Bhawan',
+    year: '1st Year',
+    course: 'B.Tech Production'
+  }
+];
+
+export default function ConnectionsScreen() {
+  const params = useLocalSearchParams();
+  const { name, phoneNumber, bio, profileImage } = params;
+  const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
+  
+  // Filter only 1st degree connections
+  const firstDegreeConnections = connections.filter(conn => conn.degree === 1);
+
+  const toggleConnection = (connectionId: string) => {
+    setSelectedConnections(prev => {
+      if (prev.includes(connectionId)) {
+        // Remove connection
+        return prev.filter(id => id !== connectionId);
+      } else {
+        // Add connection (max 8)
+        if (prev.length >= 8) {
+          Alert.alert('Limit Reached', 'You can select up to 8 connections only.');
+          return prev;
+        }
+        return [...prev, connectionId];
+      }
+    });
+  };
+
+  const handleContinue = () => {
+    if (selectedConnections.length === 0) {
+      Alert.alert('Select Connections', 'Please select at least 1 connection to continue.');
+      return;
+    }
+
+    const selectedConnectionsData = firstDegreeConnections.filter(conn => 
+      selectedConnections.includes(conn.id)
+    );
+
+    // Navigate to profile screen with selected connections and user data
+    router.push({
+      pathname: '/profile',
+      params: {
+        name: name,
+        phoneNumber: phoneNumber,
+        bio: bio,
+        profileImage: profileImage,
+        selectedConnections: JSON.stringify(selectedConnectionsData)
+      }
+    });
+  };
+
+  const ConnectionCard = ({ connection }: { connection: Connection }) => {
+    const isSelected = selectedConnections.includes(connection.id);
+    
+    return (
+      <TouchableOpacity 
+        style={[styles.card, isSelected && styles.selectedCard]}
+        onPress={() => toggleConnection(connection.id)}
+      >
+        <View style={styles.cardContent}>
+          <Image source={{ uri: connection.image }} style={styles.profileImage} />
+          
+          <View style={styles.connectionInfo}>
+            <Text style={styles.connectionName}>{connection.name}</Text>
+            <Text style={styles.connectionDetails}>{connection.course}</Text>
+            <Text style={styles.connectionDetails}>{connection.bhawan} • {connection.year}</Text>
+            <Text style={styles.connectionBio} numberOfLines={2}>{connection.bio}</Text>
+          </View>
+          
+          <View style={[styles.checkmark, isSelected && styles.selectedCheckmark]}>
+            {isSelected && <Text style={styles.checkmarkText}>✓</Text>}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Connect with People</Text>
+        <Text style={styles.subtitle}>Choose up to 8 connections to start building your network</Text>
+      </View>
+
+      {/* Selection Counter */}
+      <View style={styles.counterContainer}>
+        <Text style={styles.counterText}>
+          {selectedConnections.length}/8 selected
+        </Text>
+        {selectedConnections.length > 0 && (
+          <Text style={styles.minText}>Minimum 1 required</Text>
+        )}
+      </View>
+
+      {/* Connections List */}
+      <ScrollView style={styles.connectionsList} showsVerticalScrollIndicator={false}>
+        {firstDegreeConnections.map((connection) => (
+          <ConnectionCard key={connection.id} connection={connection} />
+        ))}
+      </ScrollView>
+
+      {/* Continue Button */}
+      <View style={styles.bottomContainer}>
+        <TouchableOpacity 
+          style={[
+            styles.continueButton, 
+            selectedConnections.length === 0 && styles.disabledButton
+          ]}
+          onPress={handleContinue}
+        >
+          <Text style={styles.continueButtonText}>
+            Continue ({selectedConnections.length})
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  backButtonText: {
+    fontSize: 24,
+    color: '#6C5CE7',
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#636E72',
+    lineHeight: 22,
+  },
+  counterContainer: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  counterText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6C5CE7',
+  },
+  minText: {
+    fontSize: 14,
+    color: '#636E72',
+  },
+  connectionsList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  card: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  selectedCard: {
+    borderColor: '#6C5CE7',
+    backgroundColor: '#F5F3FF',
+  },
+  cardContent: {
+    flexDirection: 'row',
+    padding: 16,
+    alignItems: 'center',
+  },
+  profileImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginRight: 12,
+  },
+  connectionInfo: {
+    flex: 1,
+  },
+  connectionName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2D3436',
+    marginBottom: 4,
+  },
+  connectionDetails: {
+    fontSize: 14,
+    color: '#636E72',
+    marginBottom: 2,
+  },
+  connectionBio: {
+    fontSize: 14,
+    color: '#636E72',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  checkmark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#DDD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  selectedCheckmark: {
+    backgroundColor: '#6C5CE7',
+    borderColor: '#6C5CE7',
+  },
+  checkmarkText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  bottomContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 20,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  continueButton: {
+    backgroundColor: '#6C5CE7',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#B2B2B2',
+  },
+  continueButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+});
