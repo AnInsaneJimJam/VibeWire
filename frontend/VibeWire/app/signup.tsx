@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+import axios from 'axios';
 
 export default function SignupScreen() {
   const [formData, setFormData] = useState({
@@ -86,34 +87,43 @@ export default function SignupScreen() {
     if (!validateForm()) return;
     
     setLoading(true);
+
+    const signupData = new FormData();
+    signupData.append('name', formData.name);
+    signupData.append('phoneNumber', formData.phoneNumber);
+    signupData.append('password', formData.password);
+    if (formData.bio) {
+      signupData.append('bio', formData.bio);
+    }
+
+    if (profileImage) {
+      const uriParts = profileImage.split('.');
+      const fileType = uriParts[uriParts.length - 1];
+      signupData.append('profileImage', {
+        uri: profileImage,
+        name: `photo.${fileType}`,
+        type: `image/${fileType}`,
+      } as any);
+    }
     
     try {
-      // Generate mock OTP and log it
-      const mockOTP = Math.floor(100000 + Math.random() * 900000).toString();
-      console.log('🔐 Mock OTP Generated:', mockOTP);
-      console.log('📱 Phone Number:', formData.phoneNumber);
-      console.log('👤 User Data:', {
-        name: formData.name,
-        phoneNumber: formData.phoneNumber,
-        bio: formData.bio || 'No bio provided'
+      // TODO: Replace with your actual backend URL
+      const response = await axios.post('http://localhost:3000/api/auth/signup', signupData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
+
+      console.log('🎉 Signup successful:', response.data);
+      Alert.alert('Success', 'Account created successfully!');
       
-      // Navigate to OTP verification with user data
-      router.push({
-        pathname: '/otp-verify',
-        params: {
-          phoneNumber: formData.phoneNumber,
-          mockOTP: mockOTP,
-          name: formData.name,
-          bio: formData.bio,
-          password: formData.password,
-          profileImage: profileImage || '',
-        }
-      });
+      // Navigate to login or home screen after successful signup
+      router.replace('/login'); // Or wherever you want to navigate
       
-    } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
-      console.error('Signup error:', error);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || 'Something went wrong. Please try again.';
+      Alert.alert('Signup Error', errorMessage);
+      console.error('Signup error:', error.response?.data || error.message);
     } finally {
       setLoading(false);
     }
