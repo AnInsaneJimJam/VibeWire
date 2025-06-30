@@ -90,25 +90,25 @@ export default function OTPVerifyScreen() {
         
         // Simulate API call
         setTimeout(() => {
-  Alert.alert(
-    'Success!', 
-    'Your account has been created successfully!',
-    [
-      {
-        text: 'Continue',
-        onPress: () => router.replace({
-          pathname: '/profile',
-          params: {
-            name: name,
-            phoneNumber: phoneNumber,
-            bio: bio || 'No bio provided',
-            profileImage: params.profileImage || ''
-          }
-        })
-      }
-    ]
-  );
-}, 1000);
+          Alert.alert(
+            'Success!', 
+            'Your account has been created successfully!',
+            [
+              {
+                text: 'Continue',
+                onPress: () => router.replace({
+                  pathname: '/connections-select',
+                  params: {
+                    name: name,
+                    phoneNumber: phoneNumber,
+                    bio: bio || 'No bio provided',
+                    profileImage: params.profileImage || ''
+                  }
+                })
+              }
+            ]
+          );
+        }, 1000);
 
         
       } else {
