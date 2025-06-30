@@ -10,7 +10,13 @@ if (!uri || !user || !password) {
     throw new Error("Missing Neo4j connection details in .env file");
 }
 
-export const neo4jDriver = neo4j.driver(uri, neo4j.auth.basic(user, password));
+export const neo4jDriver = neo4j.driver(
+  uri,
+  neo4j.auth.basic(user, password),
+  { encrypted: 'ENCRYPTION_OFF' }
+
+);
+
 
 const sequelize = new Sequelize(
 	process.env.DB_NAME,

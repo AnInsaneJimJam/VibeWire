@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import GraphScreen from './Graph'; 
+import Hangouts from './hangouts';
 import {
   View,
   Text,
@@ -18,6 +19,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
+
 
 interface Connection {
   id: string;
@@ -68,7 +70,7 @@ export default function ProfileScreen() {
   const connections: Connection[] = [
     {
       id: '1',
-      name: 'Arjun Sharma',
+      name: 'Arpit Agarwal',
       bio: 'Computer Science student passionate about AI and Machine Learning',
       image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
       degree: 1,
@@ -82,7 +84,7 @@ export default function ProfileScreen() {
       bio: 'Electronics Engineering student, loves robotics and innovation',
       image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
       degree: 1,
-      bhawan: 'Aravali Bhawan',
+      bhawan: 'Sarojini Bhawan',
       year: '2nd Year',
       course: 'B.Tech Electronics'
     },
@@ -103,7 +105,7 @@ export default function ProfileScreen() {
       bio: 'Chemical Engineering student aspiring to work in sustainable energy',
       image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face',
       degree: 1,
-      bhawan: 'Govind Bhawan',
+      bhawan: 'Kasturba Bhawan',
       year: '4th Year',
       course: 'B.Tech Chemical'
     },
@@ -124,7 +126,7 @@ export default function ProfileScreen() {
       bio: 'Architecture student with passion for sustainable design',
       image: 'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?w=80&h=80&fit=crop&crop=face',
       degree: 1,
-      bhawan: 'Rajendra Bhawan',
+      bhawan: 'Kasturba Bhawan',
       year: '2nd Year',
       course: 'B.Arch'
     },
@@ -145,7 +147,7 @@ export default function ProfileScreen() {
       bio: 'Biotechnology student passionate about genetic engineering research',
       image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face',
       degree: 1,
-      bhawan: 'Aravali Bhawan',
+      bhawan: 'Himalaya Bhawan',
       year: '2nd Year',
       course: 'B.Tech Biotechnology'
     },
@@ -166,7 +168,7 @@ export default function ProfileScreen() {
       image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
       degree: 2,
       mutualConnections: 5,
-      bhawan: 'Govind Bhawan',
+      bhawan: 'Sarojini Bhawan',
       year: '1st Year',
       course: 'B.Tech Production'
     }
@@ -285,13 +287,9 @@ export default function ProfileScreen() {
       connections={connections} 
     />
   );
-      case 'messages':
-        return (
-          <View style={styles.tabContent}>
-            <Text style={styles.tabTitle}>Messages</Text>
-            <Text style={styles.tabSubtitle}>No messages yet</Text>
-          </View>
-        );
+      case 'hangouts':
+  return <Hangouts />;;
+
       case 'profile':
       default:
         return (
@@ -417,12 +415,13 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.navItem, activeTab === 'messages' && styles.activeNavItem]}
-          onPress={() => setActiveTab('messages')}
-        >
-          <Text style={[styles.navIcon, activeTab === 'messages' && styles.activeNavIcon]}>💬</Text>
-          <Text style={[styles.navLabel, activeTab === 'messages' && styles.activeNavLabel]}>Messages</Text>
-        </TouchableOpacity>
+  style={[styles.navItem, activeTab === 'hangouts' && styles.activeNavItem]}
+  onPress={() => setActiveTab('hangouts')}
+>
+  <Text style={[styles.navIcon, activeTab === 'hangouts' && styles.activeNavIcon]}>📋</Text>
+  <Text style={[styles.navLabel, activeTab === 'hangouts' && styles.activeNavLabel]}>Hangouts</Text>
+</TouchableOpacity>
+
         
         <TouchableOpacity 
           style={[styles.navItem, activeTab === 'profile' && styles.activeNavItem]}
