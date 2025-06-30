@@ -107,8 +107,17 @@ export default function SignupScreen() {
     }
     
     try {
-      // TODO: Replace with your actual backend URL
-      const response = await axios.post('http://localhost:3000/api/auth/signup', signupData, {
+      const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+      const apiUrl = `http://${host}:3000/api/auth/signup`;
+      console.log('Attempting to sign up at:', apiUrl);
+      console.log('Sending data:', {
+        name: formData.name,
+        phoneNumber: formData.phoneNumber,
+        bio: formData.bio,
+        hasProfileImage: !!profileImage,
+      });
+
+      const response = await axios.post(apiUrl, signupData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -121,9 +130,16 @@ export default function SignupScreen() {
       router.replace('/login'); // Or wherever you want to navigate
       
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Something went wrong. Please try again.';
-      Alert.alert('Signup Error', errorMessage);
-      console.error('Signup error:', error.response?.data || error.message);
+      if (axios.isAxiosError(error)) {
+        console.error('Axios error:', error.message);
+        console.error('Error response:', error.response?.data);
+        console.error('Error request:', error.request?._response);
+        const errorMessage = error.response?.data?.message || 'A network error occurred. Please check your connection and API URL.';
+        Alert.alert('Signup Error', errorMessage);
+      } else {
+        console.error('Unexpected error:', error);
+        Alert.alert('Signup Error', 'An unexpected error occurred.');
+      }
     } finally {
       setLoading(false);
     }
