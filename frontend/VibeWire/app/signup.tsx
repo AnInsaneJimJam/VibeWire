@@ -107,8 +107,7 @@ export default function SignupScreen() {
     }
     
     try {
-      const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
-      const apiUrl = `http://${host}:3000/api/auth/signup`;
+      const apiUrl = "http://172.27.138.79:3000/api/auth/signup";
       console.log('Attempting to sign up at:', apiUrl);
       console.log('Sending data:', {
         name: formData.name,
