@@ -11,6 +11,7 @@ import authRoutes from "./routes/authRoutes.js";
 import { connectToNeo4j } from "./database/config/database.js";
 import connectionRoutes from "./routes/connectionRoute.js";
 import hangoutRoutes from './routes/hangoutRoute.js'
+import inviteRoutes from './routes/inviteRoute.js'
 
 const app = express();
 const PORT =  3000;
@@ -21,6 +22,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/connections", connectionRoutes);
 app.use('/api/hangouts', hangoutRoutes);
+app.use('/api/invites', inviteRoutes);
 
 async function startServer() {
 	try {

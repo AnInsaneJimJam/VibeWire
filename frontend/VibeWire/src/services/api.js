@@ -83,7 +83,7 @@ export const userAPI = {
   // Get all users
   getAllUsers: async () => {
     try {
-      const response = await api.get('/users');
+      const response = await api.get('/api/users');
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Network error' };
@@ -93,7 +93,69 @@ export const userAPI = {
   // Get user by ID
   getUserById: async (id) => {
     try {
-      const response = await api.get(`/users/${id}`);
+      const response = await api.get(`/api/users/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+};
+
+// Connection API functions (protected routes)
+export const connectionAPI = {
+  // Get connection graph
+  getGraph: async () => {
+    try {
+      const response = await api.get('/api/connections/graph');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+};
+
+// Invite API functions
+export const inviteAPI = {
+  // Get all pending invites and approval requests
+  getInvites: async () => {
+    try {
+      const response = await api.get('/api/invites');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+
+  // Respond to a hangout invite
+  respondToInvite: async (inviteId, response) => {
+    try {
+      const res = await api.post(`/api/invites/${inviteId}/respond`, { response });
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+
+  // Respond to an approval request
+  respondToApproval: async (inviteId, response) => {
+    try {
+      const res = await api.post(`/api/invites/${inviteId}/approve`, { response });
+      return res.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+};
+
+// Hangout API functions (protected routes)
+export const hangoutAPI = {
+  // Create a new hangout
+  createHangout: async (title: string, participantIds: string[]) => {
+    try {
+      const response = await api.post('/api/hangouts', {
+        title,
+        participantIds,
+      });
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Network error' };
