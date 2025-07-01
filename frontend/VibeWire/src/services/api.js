@@ -103,6 +103,16 @@ export const userAPI = {
 
 // Connection API functions (protected routes)
 export const connectionAPI = {
+  // Get all connections for the current user
+  getConnections: async () => {
+    try {
+      const response = await api.get('/api/connections');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+
   // Get connection graph
   getGraph: async () => {
     try {
@@ -149,13 +159,20 @@ export const inviteAPI = {
 
 // Hangout API functions (protected routes)
 export const hangoutAPI = {
-  // Create a new hangout
-  createHangout: async (title: string, participantIds: string[]) => {
+  // Get all hangouts
+  getHangouts: async () => {
     try {
-      const response = await api.post('/api/hangouts', {
-        title,
-        participantIds,
-      });
+      const response = await api.get('/api/hangouts');
+      return response.data;
+    } catch (error) {
+      throw error.response?.data || { message: 'Network error' };
+    }
+  },
+
+  // Create a new hangout
+  createHangout: async (hangoutData) => {
+    try {
+      const response = await api.post('/api/hangouts', hangoutData);
       return response.data;
     } catch (error) {
       throw error.response?.data || { message: 'Network error' };

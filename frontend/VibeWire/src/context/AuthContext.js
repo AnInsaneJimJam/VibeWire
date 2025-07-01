@@ -27,13 +27,6 @@ export const AuthProvider = ({ children }) => {
     loadAuthData();
   }, []);
 
-  useEffect(() => {
-    if (user && isAuthenticated && !onboardingChecked) {
-      checkOnboarding();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isAuthenticated]);
-
   const loadAuthData = async () => {
     try {
       const [storedToken, storedUser] = await AsyncStorage.multiGet([
@@ -65,8 +58,8 @@ export const AuthProvider = ({ children }) => {
         router.replace('/connections-select');
       }
     } catch (error) {
-      // If not authenticated or error, go to login
-      router.replace('/login');
+      // If not authenticated or error, go to welcome
+      router.replace('/welcome');
     }
   };
 

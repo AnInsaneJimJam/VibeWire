@@ -80,7 +80,7 @@ export default function LoginScreen() {
         [
           {
             text: 'Continue',
-            onPress: () => router.replace('/(tabs)')
+            onPress: () => router.replace('/(tabs)/profile')
           }
         ]
       );

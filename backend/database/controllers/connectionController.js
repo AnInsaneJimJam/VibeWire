@@ -1,6 +1,41 @@
 import { neo4jDriver } from "../config/database.js";
 
 /**
+ * @desc    Get all 1st degree connections for the logged-in user
+ * @route   GET /api/connections
+ * @access  Private
+ */
+export const getConnections = async (req, res) => {
+    const session = neo4jDriver.session();
+    try {
+        const userId = req.user.id;
+
+        // This query now aliases userId to id and ensures all required fields are present
+        const query = `
+            MATCH (u:User {userId: $userId})-[:IS_FRIENDS_WITH]-(friend:User)
+            RETURN friend { 
+                id: friend.userId, 
+                name: friend.name, 
+                bio: friend.bio, 
+                image: coalesce(friend.profileImage, 'https://via.placeholder.com/150'), 
+                course: friend.course, 
+                year: friend.year, 
+                bhawan: friend.bhawan 
+            } AS connection
+        `;
+
+        const result = await session.run(query, { userId });
+        const connections = result.records.map(record => record.get('connection'));
+
+        res.status(200).json(connections);
+    } catch (error) {
+        res.status(500).json({ message: "Server Error", error: error.message });
+    } finally {
+        await session.close();
+    }
+};
+
+/**
  * @desc    Create friendships for the logged-in user
  * @route   POST /api/connections
  * @access  Private
@@ -46,12 +81,7 @@ export const getConnectionsGraph = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // This single query does all the work!
-        // 1. MATCH (me) - Find the logged in user.
-        // 2. OPTIONAL MATCH (me)-[]-(friend) - Find all their friends (1st degree).
-        // 3. OPTIONAL MATCH (friend)-[]-(friendOfFriend) - Find friends of friends (2nd degree).
-        // 4. WHERE clause filters out `me` and direct friends from the 2nd degree list.
-        // 5. RETURN collects unique nodes for each category.
+        // This query now aliases userId to id and provides a default for the image
         const query = `
             MATCH (me:User {userId: $userId})
             
@@ -61,14 +91,13 @@ export const getConnectionsGraph = async (req, res) => {
             WHERE friendOfFriend <> me AND NOT (me)-[:IS_FRIENDS_WITH]-(friendOfFriend)
 
             RETURN 
-                me {.*} as user, 
-                collect(DISTINCT friend {.*}) as firstDegree, 
-                collect(DISTINCT friendOfFriend {.*}) as secondDegree
+                me { id: me.userId, name: me.name, bio: me.bio, image: coalesce(me.profileImage, 'https://via.placeholder.com/150') } as user, 
+                collect(DISTINCT friend { id: friend.userId, name: friend.name, bio: friend.bio, image: coalesce(friend.profileImage, 'https://via.placeholder.com/150') }) as firstDegree, 
+                collect(DISTINCT friendOfFriend { id: friendOfFriend.userId, name: friendOfFriend.name, bio: friendOfFriend.bio, image: coalesce(friendOfFriend.profileImage, 'https://via.placeholder.com/150') }) as secondDegree
         `;
 
         const result = await session.run(query, { userId });
 
-        // The result from the driver needs a little formatting to be clean JSON
         const record = result.records[0];
         if (!record) {
             return res.status(404).json({ message: "User not found in graph." });
@@ -76,8 +105,8 @@ export const getConnectionsGraph = async (req, res) => {
         
         const graph = {
             user: record.get('user'),
-            firstDegree: record.get('firstDegree'),
-            secondDegree: record.get('secondDegree')
+            firstDegree: record.get('firstDegree').filter(Boolean), // Ensure no nulls in array
+            secondDegree: record.get('secondDegree').filter(Boolean) // Ensure no nulls in array
         };
         
         res.status(200).json(graph);

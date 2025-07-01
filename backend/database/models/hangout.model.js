@@ -14,10 +14,29 @@ const Hangout = sequelize.define(
             allowNull: false,
             comment: "e.g., 'Grabbing food at Cyber Hub?'"
         },
+        date: {
+            type: DataTypes.DATEONLY,
+            allowNull: true,
+        },
+        time: {
+            type: DataTypes.TIME,
+            allowNull: true,
+        },
+        venue: {
+            type: DataTypes.STRING,
+            allowNull: true,
+        },
+        description: {
+            type: DataTypes.TEXT,
+            allowNull: true,
+        },
+        maxParticipants: {
+            type: DataTypes.INTEGER,
+            allowNull: true,
+        },
         status: {
-            type: DataTypes.ENUM('pending', 'confirmed', 'cancelled'),
-            defaultValue: 'pending',
-            allowNull: false,
+            type: DataTypes.ENUM('upcoming', 'ongoing', 'completed'),
+            defaultValue: 'upcoming',
         },
         // The host of the hangout is a foreign key to the User model
         hostId: {

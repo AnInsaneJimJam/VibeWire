@@ -3,16 +3,46 @@ import Invite from '../models/invite.model.js';
 import User from '../models/user.model.js';
 import { neo4jDriver } from '../config/database.js';
 
+export const getHangouts = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const hangouts = await Hangout.findAll({
+      include: [
+        {
+          model: User,
+          as: 'host',
+          attributes: ['id', 'name', 'profileImage'],
+        },
+        {
+          model: User,
+          as: 'participants',
+          attributes: ['id', 'name', 'profileImage'],
+          through: { attributes: [] },
+          where: { id: userId },
+        },
+      ],
+    });
+    res.status(200).json(hangouts);
+  } catch (error) {
+    res.status(500).json({ message: 'Server Error', error: error.message });
+  }
+};
+
 export const createHangout = async (req, res) => {
   const session = neo4jDriver.session();
   try {
-    const { title, participantIds } = req.body;
+    const { title, participantIds, date, time, venue, description, maxParticipants } = req.body;
     const hostId = req.user.id;
 
     // Create the hangout
     const hangout = await Hangout.create({
       title,
       hostId,
+      date,
+      time,
+      venue,
+      description,
+      maxParticipants,
     });
 
     // Create the invites

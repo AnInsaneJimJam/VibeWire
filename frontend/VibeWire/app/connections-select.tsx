@@ -13,6 +13,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import api, { userAPI } from '../src/services/api';
 
+import { useAuth } from '../src/context/AuthContext';
+
 interface Connection {
   id: string;
   name: string;
@@ -24,6 +26,7 @@ interface Connection {
 }
 
 export default function ConnectionsScreen() {
+  const { user } = useAuth();
   const params = useLocalSearchParams();
   const { name, phoneNumber, bio, profileImage } = params;
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
@@ -33,15 +36,17 @@ export default function ConnectionsScreen() {
     const fetchUsers = async () => {
       try {
         const users = await userAPI.getAllUsers();
-        setConnections(users);
+        setConnections(users.filter(u => u.id !== user.id));
       } catch (error) {
         console.error('Error fetching users:', error);
         Alert.alert('Error', 'Failed to fetch users. Please try again.');
       }
     };
 
-    fetchUsers();
-  }, []);
+    if (user) {
+      fetchUsers();
+    }
+  }, [user]);
 
   const toggleConnection = (connectionId: string) => {
     setSelectedConnections(prev => {
@@ -71,7 +76,7 @@ export default function ConnectionsScreen() {
         friendIds: selectedConnections.map(id => parseInt(id, 10)),
       });
       // On success, go to home
-      router.replace('/(tabs)/home');
+      router.replace('/(tabs)/');
     } catch (error) {
       console.error('Error saving connections:', error);
       Alert.alert('Error', 'Failed to save connections. Please try again.');

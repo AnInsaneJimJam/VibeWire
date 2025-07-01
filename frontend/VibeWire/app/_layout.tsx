@@ -9,8 +9,8 @@ export default function RootLayout() {
           headerShown: false,
         }}
       >
-        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="welcome" />
+        <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
         <Stack.Screen name="signup" />
       </Stack>

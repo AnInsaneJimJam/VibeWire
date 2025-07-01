@@ -15,9 +15,10 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import axios from 'axios';
+import { useAuth } from '../src/context/AuthContext';
 
 export default function SignupScreen() {
+  const { signup } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     phoneNumber: '',
@@ -87,66 +88,18 @@ export default function SignupScreen() {
     if (!validateForm()) return;
     
     setLoading(true);
-
-    const signupData = new FormData();
-    signupData.append('name', formData.name);
-    signupData.append('phoneNumber', formData.phoneNumber);
-    signupData.append('password', formData.password);
-    if (formData.bio) {
-      signupData.append('bio', formData.bio);
-    }
-
-    if (profileImage) {
-      const uriParts = profileImage.split('.');
-      const fileType = uriParts[uriParts.length - 1];
-      signupData.append('profileImage', {
-        uri: profileImage,
-        name: `photo.${fileType}`,
-        type: `image/${fileType}`,
-      } as any);
-    }
     
     try {
-      const apiUrl = "http://172.27.138.79:3000/api/auth/signup";
-      console.log('Attempting to sign up at:', apiUrl);
-      console.log('Sending data:', {
-        name: formData.name,
-        phoneNumber: formData.phoneNumber,
-        bio: formData.bio,
-        hasProfileImage: !!profileImage,
-      });
-
-      const response = await axios.post(apiUrl, signupData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      console.log('🎉 Signup successful:', response.data);
+      await signup(formData.name, formData.phoneNumber, formData.bio, formData.password, profileImage);
+      
       Alert.alert('Success', 'Account created successfully!');
       
-      // Navigate to connection selection screen after successful signup
-      router.replace({
-        pathname: '/connections-select',
-        params: {
-          name: formData.name,
-          phoneNumber: formData.phoneNumber,
-          bio: formData.bio,
-          profileImage: profileImage,
-        },
-      });
+      // Navigate to connections select screen after successful signup
+      router.replace('/connections-select');
       
     } catch (error: any) {
-      if (axios.isAxiosError(error)) {
-        console.error('Axios error:', error.message);
-        console.error('Error response:', error.response?.data);
-        console.error('Error request:', error.request?._response);
-        const errorMessage = error.response?.data?.message || 'A network error occurred. Please check your connection and API URL.';
-        Alert.alert('Signup Error', errorMessage);
-      } else {
-        console.error('Unexpected error:', error);
-        Alert.alert('Signup Error', 'An unexpected error occurred.');
-      }
+      const errorMessage = error.message || 'An unexpected error occurred.';
+      Alert.alert('Signup Error', errorMessage);
     } finally {
       setLoading(false);
     }
