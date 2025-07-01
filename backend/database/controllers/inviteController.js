@@ -12,7 +12,7 @@ export const getInvites = async (req, res) => {
         status: 'pending_response',
       },
       include: [
-        { model: Hangout, as: 'hangout' },
+        { model: Hangout, as: 'Hangout' },
         { model: User, as: 'sender' },
       ],
     });
@@ -23,7 +23,7 @@ export const getInvites = async (req, res) => {
         status: 'pending_approval',
       },
       include: [
-        { model: Hangout, as: 'hangout' },
+        { model: Hangout, as: 'Hangout' },
         { model: User, as: 'sender' },
       ],
     });
