@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,20 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
+
+// Add this type definition at the top
+export type AuthContextType = {
+  user: any;
+  token: string | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  login: (phoneNumber: string, password: string) => Promise<any>;
+  signup: (...args: any[]) => Promise<any>;
+  logout: () => Promise<void>;
+  updateUser: (userData: any) => Promise<void>;
+};
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export default function LoginScreen() {
   const [formData, setFormData] = useState({
@@ -71,26 +85,23 @@ export default function LoginScreen() {
         ]
       );
       
-    } catch (error) {
+    }  catch (error) {
       console.error('Login error:', error);
-      
-      // Handle different error types
+      const err = error as any; // <-- concise type guard
+    
       let errorMessage = 'Something went wrong. Please try again.';
-      
-      if (error.message === 'Invalid credentials.') {
+    
+      if (err.message === 'Invalid credentials.') {
         errorMessage = 'Invalid phone number or password.';
-      } else if (error.message === 'Network error') {
+      } else if (err.message === 'Network error') {
         errorMessage = 'Network error. Please check your connection.';
-      } else if (error.message) {
-        errorMessage = error.message;
+      } else if (err.message) {
+        errorMessage = err.message;
       }
-      
+    
       Alert.alert('Login Failed', errorMessage);
-    } finally {
-      setLoading(false);
     }
   };
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />

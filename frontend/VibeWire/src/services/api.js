@@ -1,9 +1,12 @@
 // src/services/api.js
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+// import type { AuthContextType } from '../../app/login'; // adjust path if
+import { createContext } from 'react';
 
-// Configure base URL - change this to your actual backend URL
-const BASE_URL = 'http://localhost:3000'; // Change to your deployed URL when ready
+// Always use the provided WSL IP
+const BASE_URL = 'http://172.27.138.79:3000';
 
 // Create axios instance
 const api = axios.create({
@@ -49,7 +52,7 @@ export const authAPI = {
   // Login user
   login: async (phoneNumber, password) => {
     try {
-      const response = await api.post('/auth/login', {
+      const response = await api.post('/api/auth/login', {
         phoneNumber,
         password,
       });
@@ -62,7 +65,7 @@ export const authAPI = {
   // Signup user (for reference)
   signup: async (name, phoneNumber, bio, password) => {
     try {
-      const response = await api.post('/auth/signup', {
+      const response = await api.post('/api/auth/signup', {
         name,
         phoneNumber,
         bio,
