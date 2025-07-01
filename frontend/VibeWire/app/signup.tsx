@@ -125,8 +125,16 @@ export default function SignupScreen() {
       console.log('🎉 Signup successful:', response.data);
       Alert.alert('Success', 'Account created successfully!');
       
-      // Navigate to login or home screen after successful signup
-      router.replace('/login'); // Or wherever you want to navigate
+      // Navigate to connection selection screen after successful signup
+      router.replace({
+        pathname: '/connections-select',
+        params: {
+          name: formData.name,
+          phoneNumber: formData.phoneNumber,
+          bio: formData.bio,
+          profileImage: profileImage,
+        },
+      });
       
     } catch (error: any) {
       if (axios.isAxiosError(error)) {
