@@ -2,6 +2,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../services/api';
+import api from '../services/api';
+import { router } from 'expo-router';
 
 const AuthContext = createContext({});
 
@@ -18,11 +20,19 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   // Load auth data on app start
   useEffect(() => {
     loadAuthData();
   }, []);
+
+  useEffect(() => {
+    if (user && isAuthenticated && !onboardingChecked) {
+      checkOnboarding();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isAuthenticated]);
 
   const loadAuthData = async () => {
     try {
@@ -43,6 +53,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const checkOnboarding = async () => {
+    try {
+      setOnboardingChecked(true);
+      // Fetch connections graph
+      const res = await api.get('/api/connections/graph');
+      const firstDegree = res.data.firstDegree || [];
+      if (firstDegree.length >= 8) {
+        router.replace('/(tabs)/home');
+      } else {
+        router.replace('/connections-select');
+      }
+    } catch (error) {
+      // If not authenticated or error, go to login
+      router.replace('/login');
+    }
+  };
+
   const login = async (phoneNumber, password) => {
     try {
       setLoading(true);
@@ -60,6 +87,7 @@ export const AuthProvider = ({ children }) => {
       setToken(authToken);
       setUser(userData);
       setIsAuthenticated(true);
+      setOnboardingChecked(false); // trigger onboarding check
       
       return response;
     } catch (error) {
@@ -87,6 +115,7 @@ export const AuthProvider = ({ children }) => {
       setToken(authToken);
       setUser(userData);
       setIsAuthenticated(true);
+      setOnboardingChecked(false); // trigger onboarding check
       
       return response;
     } catch (error) {
@@ -106,6 +135,8 @@ export const AuthProvider = ({ children }) => {
       setToken(null);
       setUser(null);
       setIsAuthenticated(false);
+      setOnboardingChecked(false);
+      router.replace('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }

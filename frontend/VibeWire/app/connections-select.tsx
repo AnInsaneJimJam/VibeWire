@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import api from '../src/services/api';
 
 interface Connection {
   id: string;
@@ -155,27 +156,23 @@ export default function ConnectionsScreen() {
     });
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selectedConnections.length === 0) {
       Alert.alert('Select Connections', 'Please select at least 1 connection to continue.');
       return;
     }
 
-    const selectedConnectionsData = firstDegreeConnections.filter(conn => 
-      selectedConnections.includes(conn.id)
-    );
-
-    // Navigate to profile screen with selected connections and user data
-    router.push({
-      pathname: '/profile',
-      params: {
-        name: name,
-        phoneNumber: phoneNumber,
-        bio: bio,
-        profileImage: profileImage,
-        selectedConnections: JSON.stringify(selectedConnectionsData)
-      }
-    });
+    try {
+      // POST selected connection IDs to backend
+      await api.post('/api/connections', {
+        friendIds: selectedConnections.map(id => parseInt(id, 10)),
+      });
+      // On success, go to home
+      router.replace('/(tabs)/home');
+    } catch (error) {
+      console.error('Error saving connections:', error);
+      Alert.alert('Error', 'Failed to save connections. Please try again.');
+    }
   };
 
   const ConnectionCard = ({ connection }: { connection: Connection }) => {
