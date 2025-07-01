@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,134 +11,37 @@ import {
   Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import api from '../src/services/api';
+import api, { userAPI } from '../src/services/api';
 
 interface Connection {
   id: string;
   name: string;
   bio: string;
-  image: string;
-  degree: number;
+  profileImage: string;
   bhawan: string;
   year: string;
   course: string;
-  mutualConnections?: number;
 }
-
-const connections: Connection[] = [
-  {
-    id: '1',
-    name: 'Arpit Agarwal',
-    bio: 'Computer Science student passionate about AI and Machine Learning',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Rajiv Bhawan',
-    year: '3rd Year',
-    course: 'B.Tech Computer Science'
-  },
-  {
-    id: '2',
-    name: 'Priya Patel',
-    bio: 'Electronics Engineering student, loves robotics and innovation',
-    image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Sarojini Bhawan',
-    year: '2nd Year',
-    course: 'B.Tech Electronics'
-  },
-  {
-    id: '3',
-    name: 'Rohit Gupta',
-    bio: 'Mechanical Engineering student with interest in automotive design',
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face',
-    degree: 2,
-    mutualConnections: 3,
-    bhawan: 'Jawahar Bhawan',
-    year: '1st Year',
-    course: 'B.Tech Mechanical'
-  },
-  {
-    id: '4',
-    name: 'Sneha Reddy',
-    bio: 'Chemical Engineering student aspiring to work in sustainable energy',
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Kasturba Bhawan',
-    year: '4th Year',
-    course: 'B.Tech Chemical'
-  },
-  {
-    id: '5',
-    name: 'Vikram Singh',
-    bio: 'Civil Engineering student, interested in infrastructure development',
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&h=80&fit=crop&crop=face',
-    degree: 2,
-    mutualConnections: 7,
-    bhawan: 'Ravindra Bhawan',
-    year: '3rd Year',
-    course: 'B.Tech Civil'
-  },
-  {
-    id: '6',
-    name: 'Ananya Iyer',
-    bio: 'Architecture student with passion for sustainable design',
-    image: 'https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Kasturba Bhawan',
-    year: '2nd Year',
-    course: 'B.Arch'
-  },
-  {
-    id: '7',
-    name: 'Kartik Agarwal',
-    bio: 'Metallurgy Engineering student interested in materials science',
-    image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=80&h=80&fit=crop&crop=face',
-    degree: 2,
-    mutualConnections: 2,
-    bhawan: 'Rajiv Bhawan',
-    year: '3rd Year',
-    course: 'B.Tech Metallurgy'
-  },
-  {
-    id: '8',
-    name: 'Kavya Nair',
-    bio: 'Biotechnology student passionate about genetic engineering research',
-    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Himalaya Bhawan',
-    year: '2nd Year',
-    course: 'B.Tech Biotechnology'
-  },
-  {
-    id: '9',
-    name: 'Aaditya Mehta',
-    bio: 'Electrical Engineering student working on renewable energy projects',
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face',
-    degree: 1,
-    bhawan: 'Jawahar Bhawan',
-    year: '4th Year',
-    course: 'B.Tech Electrical'
-  },
-  {
-    id: '10',
-    name: 'Riya Sharma',
-    bio: 'Production Engineering student interested in automation and robotics',
-    image: 'https://images.unsplash.com/photo-1494790108755-2616b2f31dd1?w=80&h=80&fit=crop&crop=face',
-    degree: 2,
-    mutualConnections: 5,
-    bhawan: 'Sarojini Bhawan',
-    year: '1st Year',
-    course: 'B.Tech Production'
-  }
-];
 
 export default function ConnectionsScreen() {
   const params = useLocalSearchParams();
   const { name, phoneNumber, bio, profileImage } = params;
   const [selectedConnections, setSelectedConnections] = useState<string[]>([]);
+  const [connections, setConnections] = useState<Connection[]>([]);
   
-  // Filter only 1st degree connections
-  const firstDegreeConnections = connections.filter(conn => conn.degree === 1);
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const users = await userAPI.getAllUsers();
+        setConnections(users);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        Alert.alert('Error', 'Failed to fetch users. Please try again.');
+      }
+    };
+
+    fetchUsers();
+  }, []);
 
   const toggleConnection = (connectionId: string) => {
     setSelectedConnections(prev => {
@@ -184,7 +87,7 @@ export default function ConnectionsScreen() {
         onPress={() => toggleConnection(connection.id)}
       >
         <View style={styles.cardContent}>
-          <Image source={{ uri: connection.image }} style={styles.profileImage} />
+          <Image source={{ uri: connection.profileImage }} style={styles.profileImage} />
           
           <View style={styles.connectionInfo}>
             <Text style={styles.connectionName}>{connection.name}</Text>
@@ -229,7 +132,7 @@ export default function ConnectionsScreen() {
 
       {/* Connections List */}
       <ScrollView style={styles.connectionsList} showsVerticalScrollIndicator={false}>
-        {firstDegreeConnections.map((connection) => (
+        {connections.map((connection) => (
           <ConnectionCard key={connection.id} connection={connection} />
         ))}
       </ScrollView>
