@@ -1,11 +1,11 @@
-# VibeWire 🌐
+# VibeWire 
 ### 1st and 2nd-Degree Hangout Planning App
 
 **Authors:** Anand Bansal, Aayush Bhoj
 
 ---
 
-## 📱 About
+## About
 
 VibeWire is a social networking app designed to help you plan hangouts with your connections. Connect with people in your network through 1st and 2nd-degree connections, visualize your social graph, and organize memorable hangouts with friends and acquaintances.
 
@@ -13,32 +13,32 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ---
 
-## ✨ Features
+##  Features
 
-### 🔐 **Secure Authentication**
+###  **Secure Authentication**
 - Phone number verification with OTP
 - Secure user registration and login
 - Password management and security
 
-### 👥 **Smart Connection Management**
+###  **Smart Connection Management**
 - Select and manage your 1st-degree connections
 - Discover 2nd-degree connections through mutual friends
 - View detailed profiles with education and background info
 - Connection recommendations based on mutual networks
 
-### 🗺️ **Interactive Network Visualization**
+###  **Interactive Network Visualization**
 - Visual graph representation of your social network
 - See how you're connected to different people
 - Explore connection paths and mutual friends
 - Interactive map of your social circle
 
-### 📋 **Hangout Planning**
+###  **Hangout Planning**
 - Plan and organize hangouts with your connections
 - Coordinate activities with multiple people
 - Manage your social calendar
 - Track upcoming and past events
 
-### 👤 **Rich User Profiles**
+###  **Rich User Profiles**
 - Customizable profile with bio and photo
 - Education details (course, year, hostel/bhawan)
 - Connection statistics and network insights
@@ -46,7 +46,7 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 - **Frontend:** React Native with Expo
 - **Language:** TypeScript
@@ -94,7 +94,7 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ---
 
-## 📱 App Flow
+##  App Flow
 
 ### 1. **Authentication Flow**
 \`\`\`
@@ -113,7 +113,7 @@ Profile Tab ← → Map/Graph Tab ← → Hangouts Tab
 
 ---
 
-## 🎯 Key Screens
+##  Key Screens
 
 ### **OTP Verification** (`otp-verify.tsx`)
 - 6-digit OTP input with auto-focus
@@ -146,7 +146,7 @@ Profile Tab ← → Map/Graph Tab ← → Hangouts Tab
 
 ---
 
-## 🏗️ Project Structure
+##  Project Structure
 
 VibeWire/
 ├── app/
@@ -166,9 +166,9 @@ VibeWire/
 
 ---
 
-## 🎨 Design Features
+## Design Features
 
-- **Modern UI/UX** with clean, intuitive design
+- **UI/UX** with clean, intuitive design
 - **Responsive layouts** that work on all screen sizes
 - **Smooth animations** and transitions
 - **Consistent color scheme** with purple accent (#6C5CE7)
@@ -176,7 +176,7 @@ VibeWire/
 
 ---
 
-## 🔧 Development Features
+##  Development Features
 
 - **TypeScript** for type safety and better development experience
 - **Modular architecture** with reusable components
