@@ -1,5 +1,4 @@
-"use client"
-
+import { Dimensions } from "react-native"
 import { useState, useRef, useEffect } from "react"
 import {
   View,
@@ -8,13 +7,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   ScrollView,
-  Dimensions,
   Modal,
   SafeAreaView,
   Alert,
   TextInput,
 } from "react-native"
 import { Svg, Circle, Line, G } from "react-native-svg"
+import { connectionAPI, hangoutAPI } from "../src/services/api"
 
 interface Connection {
   id: string
@@ -46,7 +45,6 @@ interface GraphProps {
     image: string
     userNumber: string
   }
-  connections: Connection[]
   existingHangouts?: Hangout[]
   onHangoutCreated?: (hangout: Hangout) => void
   onConnectionAddedToHangout?: (hangoutId: string, connection: Connection) => void
@@ -66,11 +64,11 @@ const savedScrollPosition = { x: 0, y: 0, zoom: 1.3 }
 
 export default function GraphScreen({
   userDetails,
-  connections,
   existingHangouts = [],
   onHangoutCreated,
   onConnectionAddedToHangout,
 }: GraphProps) {
+  const [connections, setConnections] = useState<Connection[]>([])
   const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null)
   const [showDetail, setShowDetail] = useState(false)
   const [showHangoutOptions, setShowHangoutOptions] = useState(false)
@@ -78,6 +76,22 @@ export default function GraphScreen({
   const [showExistingHangouts, setShowExistingHangouts] = useState(false)
   const [showInviteMore, setShowInviteMore] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+
+  useEffect(() => {
+    const fetchGraphData = async () => {
+      try {
+        const graphData = await connectionAPI.getGraph()
+        const firstDegree = graphData.firstDegree.map((c: any) => ({ ...c, degree: 1 }))
+        const secondDegree = graphData.secondDegree.map((c: any) => ({ ...c, degree: 2 }))
+        setConnections([...firstDegree, ...secondDegree])
+      } catch (error) {
+        console.error("Error fetching graph data:", error)
+        Alert.alert("Error", "Failed to fetch connection graph. Please try again.")
+      }
+    }
+
+    fetchGraphData()
+  }, [])
 
   // New hangout form state
   const [hangoutTitle, setHangoutTitle] = useState("")
@@ -240,30 +254,24 @@ export default function GraphScreen({
     }
   }
 
-  const handleCreateHangout = () => {
-    if (!hangoutTitle || !hangoutDate || !hangoutTime || !hangoutVenue) {
+  const handleCreateHangout = async () => {
+    if (!hangoutTitle) {
       Alert.alert("Error", "Please fill in all required fields")
       return
     }
 
-    const newHangout: Hangout = {
-      id: Date.now().toString(),
-      title: hangoutTitle,
-      date: hangoutDate,
-      time: hangoutTime,
-      venue: hangoutVenue,
-      participants: selectedParticipants,
-      maxParticipants: Number.parseInt(maxParticipants),
-      createdBy: userDetails.userNumber,
+    try {
+      await hangoutAPI.createHangout(
+        hangoutTitle,
+        selectedParticipants.map((p) => p.id)
+      )
+      Alert.alert("Success!", `Hangout "${hangoutTitle}" has been created!`)
+      setShowNewHangoutForm(false)
+      resetForms()
+    } catch (error) {
+      console.error("Error creating hangout:", error)
+      Alert.alert("Error", "Failed to create hangout. Please try again.")
     }
-
-    if (onHangoutCreated) {
-      onHangoutCreated(newHangout)
-    }
-
-    Alert.alert("Success!", `Hangout "${hangoutTitle}" has been created!`)
-    setShowNewHangoutForm(false)
-    resetForms()
   }
 
   const resetForms = () => {
@@ -405,75 +413,73 @@ export default function GraphScreen({
           height: graphHeight,
         }}
       >
-        <TouchableOpacity onPress={() => navigateToProfileScreen()} activeOpacity={0.8}>
-          <ScrollView
-            ref={scrollViewRef}
-            style={styles.verticalScroll}
-            showsVerticalScrollIndicator={false}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            contentContainerStyle={{
-              width: graphWidth,
-              height: graphHeight,
-            }}
-          >
-            {/* SVG Graph */}
-            <Svg width={graphWidth} height={graphHeight} style={styles.svg}>
-              {renderConnections()}
-              {renderNodes()}
-            </Svg>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.verticalScroll}
+          showsVerticalScrollIndicator={false}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          contentContainerStyle={{
+            width: graphWidth,
+            height: graphHeight,
+          }}
+        >
+          {/* SVG Graph */}
+          <Svg width={graphWidth} height={graphHeight} style={styles.svg}>
+            {renderConnections()}
+            {renderNodes()}
+          </Svg>
 
-            {/* Overlay nodes with profile images and names */}
-            {nodePositions.map((position, index) => {
-              const isUser = position.isUser
-              const connection = position.connection
-              const nodeSize = isUser ? 70 : 60
+          {/* Overlay nodes with profile images and names */}
+          {nodePositions.map((position, index) => {
+            const isUser = position.isUser
+            const connection = position.connection
+            const nodeSize = isUser ? 70 : 60
 
-              return (
-                <TouchableOpacity
-                  key={`overlay-${index}`}
+            return (
+              <TouchableOpacity
+                key={`overlay-${index}`}
+                style={[
+                  styles.nodeOverlay,
+                  {
+                    left: position.x - nodeSize / 2,
+                    top: position.y - nodeSize / 2,
+                    width: nodeSize,
+                    height: nodeSize,
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.3,
+                    shadowRadius: 4,
+                    elevation: 5,
+                  },
+                ]}
+                onPress={() => {
+                  if (!isUser && connection) {
+                    handleConnectionPress(connection)
+                  }
+                }}
+                disabled={isUser}
+              >
+                <Image
+                  source={{
+                    uri: isUser ? userDetails.image : connection?.image,
+                  }}
                   style={[
-                    styles.nodeOverlay,
+                    styles.nodeImage,
                     {
-                      left: position.x - nodeSize / 2,
-                      top: position.y - nodeSize / 2,
-                      width: nodeSize,
-                      height: nodeSize,
-                      shadowColor: "#000",
-                      shadowOffset: { width: 0, height: 2 },
-                      shadowOpacity: 0.3,
-                      shadowRadius: 4,
-                      elevation: 5,
+                      width: nodeSize - 10,
+                      height: nodeSize - 10,
+                      borderRadius: (nodeSize - 10) / 2,
                     },
                   ]}
-                  onPress={() => {
-                    if (!isUser && connection) {
-                      handleConnectionPress(connection)
-                    }
-                  }}
-                  disabled={isUser}
-                >
-                  <Image
-                    source={{
-                      uri: isUser ? userDetails.image : connection?.image,
-                    }}
-                    style={[
-                      styles.nodeImage,
-                      {
-                        width: nodeSize - 10,
-                        height: nodeSize - 10,
-                        borderRadius: (nodeSize - 10) / 2,
-                      },
-                    ]}
-                  />
-                  <Text style={[styles.nodeName, { fontSize: isUser ? 12 : 10 }]}>
-                    {isUser ? userDetails.name.split(" ")[0] : connection?.name.split(" ")[0]}
-                  </Text>
-                </TouchableOpacity>
-              )
-            })}
-          </ScrollView>
-        </TouchableOpacity>
+                />
+                <Text style={[styles.nodeName, { fontSize: isUser ? 12 : 10 }]}>
+                  {isUser ? userDetails.name.split(" ")[0] : connection?.name.split(" ")[0]}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
+        </ScrollView>
       </ScrollView>
 
       {/* Connection Detail Modal */}
@@ -752,428 +758,3 @@ export default function GraphScreen({
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F0F23",
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-    backgroundColor: "rgba(255,255,255,0.1)",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#F0F0F0",
-    textAlign: "center",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#636E72",
-    textAlign: "center",
-    marginTop: 4,
-  },
-  legend: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    backgroundColor: "rgba(187, 17, 17, 0.05)",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  legendItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 12,
-  },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  legendText: {
-    fontSize: 12,
-    color: "#F0F0F0",
-    fontWeight: "500",
-  },
-  graphContainer: {
-    flex: 1,
-    backgroundColor: "#1A1A2E",
-  },
-  verticalScroll: {
-    flex: 1,
-  },
-  svg: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-  },
-  nodeOverlay: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nodeImage: {
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  nodeName: {
-    color: "black",
-    fontWeight: "600",
-    marginTop: 4,
-    textAlign: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-  },
-  closeButton: {
-    fontSize: 18,
-    color: "#636E72",
-    padding: 4,
-  },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  profileSection: {
-    alignItems: "center",
-    paddingVertical: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  modalProfileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: "#6C5CE7",
-    marginBottom: 16,
-  },
-  modalName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#2D3436",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-  modalBio: {
-    fontSize: 16,
-    color: "#636E72",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 12,
-  },
-  mutualBadge: {
-    backgroundColor: "#E3F2FD",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  mutualText: {
-    fontSize: 12,
-    color: "#1976D2",
-    fontWeight: "600",
-  },
-  educationSection: {
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 12,
-  },
-  educationText: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 6,
-  },
-  actionSection: {
-    paddingVertical: 24,
-    gap: 12,
-  },
-  messageButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  messageButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  hangoutButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  hangoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Hangout Options Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  optionsModal: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 24,
-    margin: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  optionsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  optionButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    marginBottom: 12,
-    minWidth: 200,
-    alignItems: "center",
-  },
-  optionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    backgroundColor: "#DDD",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minWidth: 200,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#636E72",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Existing Hangouts Styles
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#636E72",
-    marginBottom: 20,
-  },
-  createNewButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createNewButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  hangoutCard: {
-    backgroundColor: "#F8F9FA",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#6C5CE7",
-  },
-  hangoutCardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 8,
-  },
-  hangoutCardDetails: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 4,
-  },
-  hangoutCardParticipants: {
-    fontSize: 12,
-    color: "#00B894",
-    fontWeight: "600",
-    marginTop: 8,
-  },
-  // Form Styles
-  formSection: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#2D3436",
-    backgroundColor: "#FFFFFF",
-  },
-  participantsList: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 12,
-  },
-  participantChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#E3F2FD",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  participantImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  participantName: {
-    fontSize: 14,
-    color: "#1976D2",
-    fontWeight: "500",
-  },
-  removeParticipant: {
-    marginLeft: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#FF5252",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  removeParticipantText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  inviteMoreButton: {
-    backgroundColor: "#F0F0F0",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderStyle: "dashed",
-  },
-  inviteMoreButtonText: {
-    color: "#6C5CE7",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  createHangoutButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginVertical: 24,
-  },
-  createHangoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  // Invite More People Styles
-  connectionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  selectedConnectionItem: {
-    backgroundColor: "#E3F2FD",
-  },
-  connectionImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 16,
-  },
-  connectionInfo: {
-    flex: 1,
-  },
-  connectionName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 4,
-  },
-  connectionBio: {
-    fontSize: 14,
-    color: "#636E72",
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#DDD",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkedBox: {
-    backgroundColor: "#6C5CE7",
-    borderColor: "#6C5CE7",
-  },
-  checkmark: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-})
