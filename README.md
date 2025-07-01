@@ -1,5 +1,8 @@
-# VibeWire 
-### 1st and 2nd-Degree Hangout Planning App
+
+### 1st and 2nd-Degree Hangout Planning App - VibeWire
+
+GDSC Open Project 2025
+7th June - 7th July
 
 **Authors:** Anand Bansal, Aayush Bhoj
 
