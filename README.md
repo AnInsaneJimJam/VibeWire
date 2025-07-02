@@ -1,10 +1,9 @@
-
 ### 1st and 2nd-Degree Hangout Planning App - VibeWire
 
 GDSC Open Project 2025
 7th June - 7th July
 
-**Authors:** Anand Bansal, Aayush Bhoj
+*Authors:* Anand Bansal, Aayush Bhoj
 
 ---
 
@@ -18,30 +17,30 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ##  Features
 
-###  **Secure Authentication**
+###  *Secure Authentication*
 - Phone number verification with OTP
 - Secure user registration and login
 - Password management and security
 
-###  **Smart Connection Management**
+###  *Smart Connection Management*
 - Select and manage your 1st-degree connections
 - Discover 2nd-degree connections through mutual friends
 - View detailed profiles with education and background info
 - Connection recommendations based on mutual networks
 
-###  **Interactive Network Visualization**
+###  *Interactive Network Visualization*
 - Visual graph representation of your social network
 - See how you're connected to different people
 - Explore connection paths and mutual friends
 - Interactive map of your social circle
 
-###  **Hangout Planning**
+###  *Hangout Planning*
 - Plan and organize hangouts with your connections
 - Coordinate activities with multiple people
 - Manage your social calendar
 - Track upcoming and past events
 
-###  **Rich User Profiles**
+###  *Rich User Profiles*
 - Customizable profile with bio and photo
 - Education details (course, year, hostel/bhawan)
 - Connection statistics and network insights
@@ -51,13 +50,13 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ##  Tech Stack
 
-- **Frontend:** React Native with Expo
-- **Language:** TypeScript
-- **Navigation:** Expo Router
-- **UI Components:** Custom React Native components
-- **Image Handling:** Expo ImagePicker
-- **Authentication:** OTP-based phone verification
-- **State Management:** React Hooks (useState, useEffect)
+- *Frontend:* React Native with Expo
+- *Language:* TypeScript
+- *Navigation:* Expo Router
+- *UI Components:* Custom React Native components
+- *Image Handling:* Expo ImagePicker
+- *Authentication:* OTP-based phone verification
+- *State Management:* React Hooks (useState, useEffect)
 
 ---
 
@@ -71,78 +70,78 @@ Perfect for college students, professionals, and anyone looking to expand their 
 
 ### Installation
 
-1. **Clone the repository**
-   \`\`\`bash
+1. *Clone the repository*
+   \\\`bash
    git clone https://github.com/yourusername/vibewire.git
    cd vibewire
-   \`\`\`
+   \\\`
 
-2. **Install dependencies**
+2. *Install dependencies*
    Go to frontend/VibeWire and then
-   \`\`\`bash
+   \\\`bash
    npm install
    # or
    yarn install
-   \`\`\`
+   \\\`
 
-4. **Start the development server**
-   \`\`\`bash
+4. *Start the development server*
+   \\\`bash
    npx expo start
-   \`\`\`
+   \\\`
 
-5. **Run on device/simulator**
-   - Press `i` for iOS simulator
-   - Press `a` for Android emulator
+5. *Run on device/simulator*
+   - Press i for iOS simulator
+   - Press a for Android emulator
    - Scan QR code with Expo Go app on your phone
 
 ---
 
 ##  App Flow
 
-### 1. **Authentication Flow**
-\`\`\`
+### 1. *Authentication Flow*
+\\\`
 Phone Number Input → OTP Verification → Account Creation
-\`\`\`
+\\\`
 
-### 2. **Onboarding Flow**
-\`\`\`
+### 2. *Onboarding Flow*
+\\\`
 OTP Verification → Connection Selection → Profile Setup → Main App
-\`\`\`
+\\\`
 
-### 3. **Main App Navigation**
-\`\`\`
+### 3. *Main App Navigation*
+\\\`
 Profile Tab ← → Map/Graph Tab ← → Hangouts Tab
-\`\`\`
+\\\`
 
 ---
 
 ##  Key Screens
 
-### **OTP Verification** (`otp-verify.tsx`)
+### *OTP Verification* (otp-verify.tsx)
 - 6-digit OTP input with auto-focus
 - Resend functionality with countdown timer
 - Mock OTP generation for development
 - Secure verification process
 
-### **Connection Selection** (`connections-select.tsx`)
+### *Connection Selection* (connections-select.tsx)
 - Browse and select up to 8 connections
 - Filter by 1st-degree connections
 - View detailed connection profiles
 - Smart selection with connection limits
 
-### **Profile Management** (`profile.tsx`)
+### *Profile Management* (profile.tsx)
 - Edit personal information and bio
 - View connection statistics
 - Manage selected connections
 - Password change functionality
 - Interactive profile customization
 
-### **Network Visualization** (`Graph.tsx`)
+### *Network Visualization* (Graph.tsx)
 - Visual representation of social network
 - Interactive connection mapping
 - Degree-based connection filtering
 
-### **Hangout Planning** (`hangouts.tsx`)
+### *Hangout Planning* (hangouts.tsx)
 - Plan and organize social events
 - Coordinate with multiple connections
 - Manage hangout calendar
@@ -171,18 +170,18 @@ VibeWire/
 
 ## Design Features
 
-- **UI/UX** with clean, intuitive design
-- **Responsive layouts** that work on all screen sizes
-- **Smooth animations** and transitions
-- **Consistent color scheme** with purple accent (#6C5CE7)
-- **Accessibility support** with proper labels and navigation
+- *UI/UX* with clean, intuitive design
+- *Responsive layouts* that work on all screen sizes
+- *Smooth animations* and transitions
+- *Consistent color scheme* with purple accent (#6C5CE7)
+- *Accessibility support* with proper labels and navigation
 
 ---
 
 ##  Development Features
 
-- **TypeScript** for type safety and better development experience
-- **Modular architecture** with reusable components
-- **Mock data** for development and testing
-- **Console logging** for debugging and development
-- **Error handling** with user-friendly alerts
+- *TypeScript* for type safety and better development experience
+- *Modular architecture* with reusable components
+- *Mock data* for development and testing
+- *Console logging* for debugging and development
+- *Error handling* with user-friendly alerts
