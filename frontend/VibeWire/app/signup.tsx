@@ -36,7 +36,7 @@ export default function SignupScreen() {
     }));
   };
 
-    const pickImage = async () => {
+  const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       Alert.alert('Permission denied', 'We need access to your camera roll to select a photo.');
@@ -54,9 +54,10 @@ export default function SignupScreen() {
       setProfileImage(result.assets[0].uri);
     }
   };
+
   const removeImage = () => {
-  setProfileImage(null);
-};
+    setProfileImage(null);
+  };
 
   const validateForm = () => {
     const { name, phoneNumber, password, confirmPassword } = formData;
@@ -93,8 +94,6 @@ export default function SignupScreen() {
       await signup(formData.name, formData.phoneNumber, formData.bio, formData.password, profileImage);
       
       Alert.alert('Success', 'Account created successfully!');
-      
-      // Navigate to connections select screen after successful signup
       router.replace('/connections-select');
       
     } catch (error: any) {
@@ -107,13 +106,13 @@ export default function SignupScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F23" />
       
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity 
@@ -130,23 +129,22 @@ export default function SignupScreen() {
           <View style={styles.form}>
             {/* 👤 Profile Picture Picker */}
             <View style={styles.profilePicRow}>
-  <TouchableOpacity onPress={pickImage}>
-    {profileImage ? (
-      <Image source={{ uri: profileImage }} style={styles.profilePic} />
-    ) : (
-      <View style={styles.placeholderPic}>
-        <Text style={styles.placeholderText}>+ Add Photo</Text>
-      </View>
-    )}
-  </TouchableOpacity>
+              <TouchableOpacity onPress={pickImage}>
+                {profileImage ? (
+                  <Image source={{ uri: profileImage }} style={styles.profilePic} />
+                ) : (
+                  <View style={styles.placeholderPic}>
+                    <Text style={styles.placeholderText}>+ Add Avatar</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
 
-  {profileImage && (
-    <TouchableOpacity onPress={removeImage} style={styles.removeButton}>
-      <Text style={styles.removeButtonText}>✕</Text>
-    </TouchableOpacity>
-  )}
-</View>
-
+              {profileImage && (
+                <TouchableOpacity onPress={removeImage} style={styles.removeButton}>
+                  <Text style={styles.removeButtonText}>✕</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           
             {/* Name Input */}
             <View style={styles.inputGroup}>
@@ -154,6 +152,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Enter your full name"
+                placeholderTextColor="#666"
                 value={formData.name}
                 onChangeText={(text) => handleInputChange('name', text)}
                 autoCapitalize="words"
@@ -165,7 +164,8 @@ export default function SignupScreen() {
               <Text style={styles.label}>Phone Number</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your phone number"
+                placeholder="Enter phone number"
+                placeholderTextColor="#666"
                 value={formData.phoneNumber}
                 onChangeText={(text) => handleInputChange('phoneNumber', text)}
                 keyboardType="phone-pad"
@@ -179,6 +179,7 @@ export default function SignupScreen() {
               <TextInput
                 style={[styles.input, styles.bioInput]}
                 placeholder="Tell us about yourself..."
+                placeholderTextColor="#666"
                 value={formData.bio}
                 onChangeText={(text) => handleInputChange('bio', text)}
                 multiline
@@ -195,7 +196,8 @@ export default function SignupScreen() {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Create a password"
+                placeholder="Create a password (min 6 chars)"
+                placeholderTextColor="#666"
                 value={formData.password}
                 onChangeText={(text) => handleInputChange('password', text)}
                 secureTextEntry
@@ -208,6 +210,7 @@ export default function SignupScreen() {
               <TextInput
                 style={styles.input}
                 placeholder="Confirm your password"
+                placeholderTextColor="#666"
                 value={formData.confirmPassword}
                 onChangeText={(text) => handleInputChange('confirmPassword', text)}
                 secureTextEntry
@@ -221,7 +224,7 @@ export default function SignupScreen() {
               disabled={loading}
             >
               <Text style={styles.signupButtonText}>
-                {loading ? 'Creating Account...' : 'Send OTP'}
+                {loading ? 'Synthesizing Profile...' : 'Create Account'}
               </Text>
             </TouchableOpacity>
 
@@ -242,143 +245,157 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0F0F23',
   },
   keyboardView: {
     flex: 1,
   },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 40,
+  },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#1C1C3A',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#2E2E5F',
   },
   backButtonText: {
-    fontSize: 24,
-    color: '#6C5CE7',
+    fontSize: 20,
+    color: '#00F0FF',
+    fontWeight: 'bold',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2D3436',
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#8E8EA8',
   },
   form: {
-    paddingHorizontal: 20,
-  },
-  profilePicContainer: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  profilePic: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    borderColor: '#6C5CE7',
-  },
-  placeholderPic: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#CCC',
-  },
-  placeholderText: {
-    color: '#999',
-    fontSize: 14,
+    paddingHorizontal: 24,
   },
   profilePicRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 20,
-  gap: 10, // or use marginLeft inside child if gap unsupported
-},
-removeButton: {
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-  backgroundColor: '#E17055',
-  justifyContent: 'center',
-  alignItems: 'center',
-},
-removeButtonText: {
-  color: '#fff',
-  fontWeight: 'bold',
-  fontSize: 16,
-},
-
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  profilePic: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 2.5,
+    borderColor: '#00F0FF',
+  },
+  placeholderPic: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#13132B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#1E1E3F',
+  },
+  placeholderText: {
+    color: '#8E8EA8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  removeButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FF2D8F',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 22,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3436',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8E8EA8',
     marginBottom: 8,
+    letterSpacing: 0.2,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#DDD',
+    backgroundColor: '#13132B',
+    borderWidth: 1.5,
+    borderColor: '#1E1E3F',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    backgroundColor: '#F8F9FA',
+    paddingVertical: 13,
+    fontSize: 14,
+    color: '#FFFFFF',
   },
   bioInput: {
     height: 80,
     textAlignVertical: 'top',
   },
   characterCount: {
-    fontSize: 12,
-    color: '#636E72',
+    fontSize: 11,
+    color: '#8E8EA8',
     textAlign: 'right',
     marginTop: 4,
   },
   signupButton: {
-    backgroundColor: '#6C5CE7',
-    paddingVertical: 16,
+    backgroundColor: '#FF2D8F',
+    paddingVertical: 15,
     borderRadius: 12,
     marginTop: 20,
-    marginBottom: 30,
+    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF2D8F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   disabledButton: {
-    backgroundColor: '#B2B2B2',
+    backgroundColor: '#66163E',
   },
   signupButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     textAlign: 'center',
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 30,
   },
   loginText: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#8E8EA8',
   },
   loginLink: {
-    fontSize: 16,
-    color: '#6C5CE7',
-    fontWeight: '600',
+    fontSize: 14,
+    color: '#00F0FF',
+    fontWeight: '700',
   },
 });

@@ -2,11 +2,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-// import type { AuthContextType } from '../../app/login'; // adjust path if
-import { createContext } from 'react';
 
 // Always use the provided WSL IP
-const BASE_URL = 'http://172.27.138.79:3000';
+const BASE_URL = 'http://192.168.29.208:3000';
 
 // Create axios instance
 const api = axios.create({

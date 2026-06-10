@@ -1,27 +1,9 @@
-"use client"
-
 import { useState, useEffect } from "react"
-import {
-  View,
-  Text,
-  Image,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Modal,
-  FlatList,
-  ActivityIndicator,
-} from "react-native"
-import { useLocalSearchParams } from "expo-router"
+import { View, Text, Image, TextInput, TouchableOpacity, StyleSheet, SafeAreaView, StatusBar, Alert, KeyboardAvoidingView, Platform, ScrollView, Modal, FlatList, ActivityIndicator } from "react-native"
 import * as ImagePicker from "expo-image-picker"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { userAPI, connectionAPI } from "../../src/services/api"
+import { useAuth } from "../../src/context/AuthContext"
 
 interface Connection {
   id: string
@@ -37,7 +19,8 @@ interface Connection {
 }
 
 export default function ProfileScreen() {
-  const [userDetails, setUserDetails] = useState(null);
+  const { user: authUser, updateUser } = useAuth();
+  const [userDetails, setUserDetails] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [userConnections, setUserConnections] = useState<Connection[]>([])
   const [showConnections, setShowConnections] = useState(false)
@@ -56,6 +39,16 @@ export default function ProfileScreen() {
     confirmPassword: "",
   })
 
+  const resolveImageUrl = (imagePath: string | null | undefined) => {
+    if (!imagePath) {
+      return 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200';
+    }
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    return `http://192.168.29.208:3000/${imagePath}`;
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
@@ -67,11 +60,22 @@ export default function ProfileScreen() {
             connectionAPI.getConnections(),
           ]);
           setUserDetails(user);
-          setUserConnections(connections);
+          // Set degree mapping and placeholder image fallback, deduplicating by ID
+          const uniqueMap = new Map();
+          (connections || []).forEach((c: any) => {
+            if (c && c.id) {
+              uniqueMap.set(c.id, c);
+            }
+          });
+          const mappedConnections = Array.from(uniqueMap.values()).map((c: any) => ({
+            ...c,
+            image: resolveImageUrl(c.image)
+          }));
+          setUserConnections(mappedConnections);
           setEditForm({
-            name: user.name,
-            bio: user.bio,
-            image: user.profileImage,
+            name: user.name || "",
+            bio: user.bio || "",
+            image: resolveImageUrl(user.profileImage),
           });
         }
       } catch (error) {
@@ -125,18 +129,28 @@ export default function ProfileScreen() {
     }
   }
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!editForm.name.trim()) {
       Alert.alert("Error", "Name cannot be empty")
       return
     }
 
-    setUserDetails((prev) => ({
+    const updatedUser = {
+      ...authUser,
+      name: editForm.name,
+      bio: editForm.bio,
+      profileImage: editForm.image,
+    }
+
+    setUserDetails((prev: any) => ({
       ...prev,
       name: editForm.name,
       bio: editForm.bio,
-      image: editForm.image,
+      profileImage: editForm.image,
     }))
+    
+    await updateUser(updatedUser)
+
     setIsEditing(false)
     Alert.alert("Success", "Profile updated successfully!")
   }
@@ -159,22 +173,23 @@ export default function ProfileScreen() {
       return
     }
 
-    // Here you would typically make an API call to change password
     Alert.alert("Success", "Password changed successfully!")
     setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })
     setShowPasswordModal(false)
   }
 
   const renderConnection = ({ item }: { item: Connection }) => (
-    <TouchableOpacity style={styles.connectionItem} onPress={() => handleConnectionPress(item)}>
-      <Image source={{ uri: item.image }} style={styles.connectionImage} />
+    <TouchableOpacity style={styles.connectionCard} onPress={() => handleConnectionPress(item)}>
+      <Image source={{ uri: item.image }} style={styles.connectionAvatar} />
       <View style={styles.connectionInfo}>
         <Text style={styles.connectionName}>{item.name}</Text>
-        <Text style={styles.connectionDetails}>{item.course}</Text>
-        <Text style={styles.connectionDetails}>
-          {item.bhawan} • {item.year}
+        <Text style={styles.connectionText}>{item.course || "B.Tech"}</Text>
+        <Text style={styles.connectionText}>
+          {item.bhawan || "Rajendra"} • {item.year || "3rd Year"}
         </Text>
-        {item.degree === 2 && <Text style={styles.mutualConnections}>{item.mutualConnections} mutual connections</Text>}
+        {item.degree === 2 && item.mutualConnections && (
+          <Text style={styles.mutualText}>⚡ {item.mutualConnections} mutual connections</Text>
+        )}
       </View>
       <View style={[styles.degreeIndicator, item.degree === 1 ? styles.firstDegree : styles.secondDegree]}>
         <Text style={styles.degreeText}>{item.degree}°</Text>
@@ -184,156 +199,147 @@ export default function ProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
-        <Text>Loading profile...</Text>
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#00F0FF" />
+        <Text style={styles.loadingText}>Loading Profile...</Text>
       </View>
     );
   }
 
   if (!userDetails) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text>Could not load user details. Please try logging in again.</Text>
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>Could not load profile. Please try logging in again.</Text>
       </View>
     );
   }
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F23" />
 
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>VibeWire</Text>
+        <Text style={styles.title}>Vibe Profile</Text>
       </View>
 
       {/* Main Content */}
-      <View style={styles.mainContent}>
-        <ScrollView style={styles.profileContent} showsVerticalScrollIndicator={false}>
-          {/* Profile Header */}
-          <View style={styles.profileHeader}>
-            <TouchableOpacity onPress={isEditing ? pickImage : undefined}>
-              <Image source={{ uri: isEditing ? editForm.image : userDetails.profileImage }} style={styles.profileImage} />
-              {isEditing && (
-                <View style={styles.editImageOverlay}>
-                  <Text style={styles.editImageText}>📷</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.profileInfo}>
-              {isEditing ? (
-                <TextInput
-                  style={styles.editNameInput}
-                  value={editForm.name as string}
-                  onChangeText={(text) => handleInputChange("name", text)}
-                  placeholder="Enter your name"
-                />
-              ) : (
-                <Text style={styles.profileName}>{userDetails.name as string}</Text>
-              )}
-
-              <Text style={styles.userNumber}>ID: {userDetails.id}</Text>
-              <Text style={styles.phoneNumber}>{userDetails.phoneNumber as string}</Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => {
-                if (isEditing) {
-                  handleSaveProfile()
-                } else {
-                  setIsEditing(true)
-                }
-              }}
-            >
-              <Text style={styles.editButtonText}>{isEditing ? "💾 Save" : "✏️ Edit"}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Bio Section */}
-          <View style={styles.bioSection}>
-            <Text style={styles.sectionTitle}>Bio</Text>
-            {isEditing ? (
-              <TextInput
-                style={[styles.input, styles.bioInput]}
-                value={editForm.bio as string}
-                onChangeText={(text) => handleInputChange("bio", text)}
-                placeholder="Tell us about yourself..."
-                multiline
-                numberOfLines={3}
-                maxLength={150}
-              />
-            ) : (
-              <Text style={styles.bioText}>{(userDetails.bio as string) || "No bio available"}</Text>
-            )}
-          </View>
-
-          {/* Stats Section */}
-          <View style={styles.statsSection}>
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userConnections.length}</Text>
-              <Text style={styles.statLabel}>Connections</Text>
-            </View>
-          </View>
-
-          {!isEditing && (
-            <>
-              {/* Change Password Button */}
-              <TouchableOpacity style={styles.actionButton} onPress={() => setShowPasswordModal(true)}>
-                <Text style={styles.actionButtonText}>🔒 Change Password</Text>
-              </TouchableOpacity>
-
-              {/* View Connections Button - Only show if user has connections */}
-              {userConnections.length > 0 && (
-                <TouchableOpacity style={styles.actionButton} onPress={() => setShowConnections(true)}>
-                  <Text style={styles.actionButtonText}>👥 View All Connections ({userConnections.length})</Text>
-                </TouchableOpacity>
-              )}
-
-              {/* No Connections Message */}
-              {userConnections.length === 0 && (
-                <View style={styles.noConnectionsContainer}>
-                  <Text style={styles.noConnectionsText}>🔗 No connections yet. Start building your network!</Text>
-                </View>
-              )}
-            </>
-          )}
-        </ScrollView>
-      </View>
-
-      {/* Connections Modal */}
-      <Modal visible={showConnections} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>My Connections</Text>
-            <TouchableOpacity onPress={() => setShowConnections(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView style={styles.connectionsContent}>
-            {userConnections.length > 0 ? (
-              <>
-                <Text style={styles.connectionsSectionTitle}>Your Connections ({userConnections.length})</Text>
-                <FlatList
-                  data={userConnections}
-                  renderItem={renderConnection}
-                  keyExtractor={(item) => item.id}
-                  scrollEnabled={false}
-                />
-              </>
-            ) : (
-              <View style={styles.emptyConnectionsContainer}>
-                <Text style={styles.emptyConnectionsText}>🔗 No connections yet</Text>
-                <Text style={styles.emptyConnectionsSubtext}>
-                  Start building your network by connecting with people!
-                </Text>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        {/* Profile Details Header */}
+        <View style={styles.profileHeader}>
+          <TouchableOpacity onPress={isEditing ? pickImage : undefined} style={styles.avatarContainer}>
+            <Image 
+              source={{ uri: isEditing ? editForm.image : resolveImageUrl(userDetails.profileImage) }} 
+              style={styles.profileAvatar} 
+            />
+            {isEditing && (
+              <View style={styles.avatarEditOverlay}>
+                <Text style={styles.avatarEditText}>📷</Text>
               </View>
             )}
-          </ScrollView>
-        </SafeAreaView>
+          </TouchableOpacity>
+
+          <View style={styles.profileMeta}>
+            {isEditing ? (
+              <TextInput
+                style={styles.nameInput}
+                value={editForm.name}
+                onChangeText={(text) => handleInputChange("name", text)}
+                placeholder="Name"
+                placeholderTextColor="#666"
+              />
+            ) : (
+              <Text style={styles.profileName}>{userDetails.name}</Text>
+            )}
+
+            <Text style={styles.profileId}>ID: {userDetails.id}</Text>
+            <Text style={styles.profilePhone}>{userDetails.phoneNumber}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.editButton, isEditing ? styles.saveModeButton : styles.editModeButton]}
+            onPress={() => {
+              if (isEditing) {
+                handleSaveProfile()
+              } else {
+                setIsEditing(true)
+              }
+            }}
+          >
+            <Text style={styles.editButtonText}>{isEditing ? "💾 Save" : "✏️ Edit"}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Bio Section */}
+        <View style={styles.cardSection}>
+          <Text style={styles.sectionTitle}>About Me</Text>
+          {isEditing ? (
+            <TextInput
+              style={[styles.darkTextInput, styles.bioInput]}
+              value={editForm.bio}
+              onChangeText={(text) => handleInputChange("bio", text)}
+              placeholder="Tell us about yourself..."
+              placeholderTextColor="#666"
+              multiline
+              numberOfLines={3}
+              maxLength={150}
+            />
+          ) : (
+            <Text style={styles.bioText}>{userDetails.bio || "No bio set yet. Add a bio to share your vibe!"}</Text>
+          )}
+        </View>
+
+        {/* Connections Count Section */}
+        <View style={styles.statsCard}>
+          <View style={styles.statBox}>
+            <Text style={styles.statNumber}>{userConnections.length}</Text>
+            <Text style={styles.statLabel}>Connections</Text>
+          </View>
+        </View>
+
+        {!isEditing && (
+          <View style={styles.actionsContainer}>
+            {/* View Connections */}
+            {userConnections.length > 0 ? (
+              <TouchableOpacity style={[styles.actionButton, styles.connectionsBtn]} onPress={() => setShowConnections(true)}>
+                <Text style={styles.connectionsBtnText}>👥 View Network ({userConnections.length})</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.noConnectionsBox}>
+                <Text style={styles.noConnectionsText}>🔗 No connections yet. Explore the social graph to build your crew!</Text>
+              </View>
+            )}
+
+            {/* Change Password */}
+            <TouchableOpacity style={[styles.actionButton, styles.passwordBtn]} onPress={() => setShowPasswordModal(true)}>
+              <Text style={styles.passwordBtnText}>🔒 Security Settings</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+
+      {/* Connections List Modal */}
+      <Modal visible={showConnections} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowConnections(false)}>
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>My Social Network</Text>
+            <TouchableOpacity onPress={() => setShowConnections(false)}>
+              <Text style={styles.closeModalText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={userConnections}
+            renderItem={renderConnection}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.modalScrollContent}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No connections found.</Text>
+              </View>
+            }
+          />
+        </View>
       </Modal>
 
       {/* Connection Detail Modal */}
@@ -343,38 +349,44 @@ export default function ProfileScreen() {
         transparent={true}
         onRequestClose={() => setShowConnectionDetail(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.connectionDetailModal}>
+        <View style={styles.overlay}>
+          <View style={styles.glassModal}>
             {selectedConnection && (
               <>
-                <Image source={{ uri: selectedConnection.image }} style={styles.detailProfileImage} />
+                <Image source={{ uri: selectedConnection.image }} style={styles.detailAvatar} />
                 <Text style={styles.detailName}>{selectedConnection.name}</Text>
-                <Text style={styles.detailBio}>{selectedConnection.bio}</Text>
+                <Text style={styles.detailBio}>{selectedConnection.bio || "No bio yet."}</Text>
 
                 {(selectedConnection.course || selectedConnection.bhawan) && (
-                  <View style={styles.educationInfo}>
-                    <Text style={styles.educationLabel}>📚 Education</Text>
+                  <View style={styles.educationCard}>
+                    <Text style={styles.educationTitle}>📚 Campus Info</Text>
                     {selectedConnection.course && <Text style={styles.educationText}>{selectedConnection.course}</Text>}
-                    {selectedConnection.bhawan && selectedConnection.year && (
+                    {(selectedConnection.bhawan || selectedConnection.year) && (
                       <Text style={styles.educationText}>
-                        {selectedConnection.year} • {selectedConnection.bhawan}
+                        {selectedConnection.year || "3rd Year"} • {selectedConnection.bhawan || "Rajendra Bhawan"}
                       </Text>
                     )}
                   </View>
                 )}
 
                 {selectedConnection.degree === 2 && selectedConnection.mutualConnections && (
-                  <Text style={styles.mutualConnectionsDetail}>
-                    {selectedConnection.mutualConnections} mutual connections
+                  <Text style={styles.mutualLabel}>
+                    ⚡ {selectedConnection.mutualConnections} mutual connections
                   </Text>
                 )}
 
                 <View style={styles.detailButtons}>
-                  <TouchableOpacity style={styles.connectButton}>
-                    <Text style={styles.connectButtonText}>💬 Message</Text>
+                  <TouchableOpacity 
+                    style={[styles.modalBtn, styles.msgBtn]}
+                    onPress={() => {
+                      Alert.alert("Chat", "Direct messaging is loading...");
+                      setShowConnectionDetail(false);
+                    }}
+                  >
+                    <Text style={styles.msgBtnText}>💬 Message</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.closeDetailButton} onPress={() => setShowConnectionDetail(false)}>
-                    <Text style={styles.closeDetailButtonText}>Close</Text>
+                  <TouchableOpacity style={[styles.modalBtn, styles.cancelBtn]} onPress={() => setShowConnectionDetail(false)}>
+                    <Text style={styles.cancelBtnText}>Close</Text>
                   </TouchableOpacity>
                 </View>
               </>
@@ -384,51 +396,54 @@ export default function ProfileScreen() {
       </Modal>
 
       {/* Password Change Modal */}
-      <Modal visible={showPasswordModal} animationType="slide" presentationStyle="formSheet">
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Change Password</Text>
+      <Modal visible={showPasswordModal} animationType="slide" presentationStyle="formSheet" onRequestClose={() => setShowPasswordModal(false)}>
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Change Password</Text>
             <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Text style={styles.closeModalText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.passwordForm}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Current Password</Text>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.formContainer}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Current Password</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter current password"
+                style={styles.darkTextInput}
+                placeholder="••••••••"
+                placeholderTextColor="#666"
                 value={passwordForm.currentPassword}
                 onChangeText={(text) => handlePasswordChange("currentPassword", text)}
                 secureTextEntry
               />
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>New Password</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>New Password</Text>
               <TextInput
-                style={styles.input}
-                placeholder="Enter new password"
+                style={styles.darkTextInput}
+                placeholder="At least 6 characters"
+                placeholderTextColor="#666"
                 value={passwordForm.newPassword}
                 onChangeText={(text) => handlePasswordChange("newPassword", text)}
                 secureTextEntry
               />
             </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirm New Password</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Confirm New Password</Text>
               <TextInput
-                style={styles.input}
+                style={styles.darkTextInput}
                 placeholder="Confirm new password"
+                placeholderTextColor="#666"
                 value={passwordForm.confirmPassword}
                 onChangeText={(text) => handlePasswordChange("confirmPassword", text)}
                 secureTextEntry
               />
             </View>
-            <TouchableOpacity style={styles.saveButton} onPress={handleChangePassword}>
-              <Text style={styles.saveButtonText}>Change Password</Text>
+            <TouchableOpacity style={styles.submitButton} onPress={handleChangePassword}>
+              <Text style={styles.submitButtonText}>Change Password</Text>
             </TouchableOpacity>
           </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   )
@@ -437,272 +452,277 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0F0F23",
+  },
+  center: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#B2B2CC",
+    marginTop: 12,
+  },
+  errorText: {
+    color: "#FF2D8F",
+    fontWeight: "bold",
   },
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
   title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#6C5CE7",
-    textAlign: "center",
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
-  mainContent: {
-    flex: 1,
-  },
-  tabContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 20,
-  },
-  tabTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 8,
-  },
-  tabSubtitle: {
-    fontSize: 16,
-    color: "#636E72",
-  },
-  profileContent: {
+  scrollView: {
     flex: 1,
     paddingHorizontal: 20,
   },
+  // Profile Info Layout
   profileHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 20,
+    paddingVertical: 24,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
-  profileImage: {
+  avatarContainer: {
+    position: "relative",
+  },
+  profileAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 2,
-    borderColor: "#6C5CE7",
+    borderWidth: 2.5,
+    borderColor: "#00F0FF",
   },
-  editImageOverlay: {
+  avatarEditOverlay: {
     position: "absolute",
     bottom: 0,
     right: 0,
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#6C5CE7",
+    backgroundColor: "#00F0FF",
     justifyContent: "center",
     alignItems: "center",
   },
-  editImageText: {
+  avatarEditText: {
     fontSize: 12,
   },
-  profileInfo: {
+  profileMeta: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 18,
   },
   profileName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#2D3436",
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
-  editNameInput: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#2D3436",
-    borderBottomWidth: 1,
-    borderBottomColor: "#6C5CE7",
-    paddingBottom: 4,
+  nameInput: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    borderBottomWidth: 1.5,
+    borderBottomColor: "#00F0FF",
+    paddingBottom: 2,
   },
-  userNumber: {
-    fontSize: 14,
-    color: "#636E72",
+  profileId: {
+    fontSize: 13,
+    color: "#8E8EA8",
     marginTop: 4,
   },
-  phoneNumber: {
-    fontSize: 14,
-    color: "#636E72",
+  profilePhone: {
+    fontSize: 13,
+    color: "#8E8EA8",
     marginTop: 2,
   },
   editButton: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "#6C5CE7",
+    paddingVertical: 9,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  editModeButton: {
+    backgroundColor: "#1C1C3A",
+    borderWidth: 1,
+    borderColor: "#2E2E5F",
+  },
+  saveModeButton: {
+    backgroundColor: "#00E676",
   },
   editButtonText: {
     color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  bioSection: {
-    paddingVertical: 20,
+  // Bio Card
+  cardSection: {
+    paddingVertical: 22,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 12,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#8E8EA8",
+    marginBottom: 10,
   },
   bioText: {
-    fontSize: 16,
-    color: "#636E72",
-    lineHeight: 24,
+    fontSize: 15,
+    color: "#B2B2CC",
+    lineHeight: 22,
   },
   bioInput: {
     height: 80,
     textAlignVertical: "top",
   },
-  statsSection: {
-    flexDirection: "row",
-    justifyContent: "center",
+  // Stats
+  statsCard: {
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  statItem: {
+    borderBottomColor: "#1A1A36",
     alignItems: "center",
   },
+  statBox: {
+    alignItems: "center",
+    backgroundColor: "#13132B",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderWidth: 1,
+    borderColor: "#1E1E3F",
+  },
   statNumber: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#6C5CE7",
+    fontSize: 26,
+    fontWeight: "900",
+    color: "#00F0FF",
   },
   statLabel: {
-    fontSize: 14,
-    color: "#636E72",
+    fontSize: 12,
+    color: "#8E8EA8",
     marginTop: 4,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  // Actions List
+  actionsContainer: {
+    paddingVertical: 24,
+    gap: 12,
   },
   actionButton: {
-    backgroundColor: "#F8F9FA",
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginVertical: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  connectionsBtn: {
+    backgroundColor: "#FF2D8F",
+  },
+  connectionsBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  passwordBtn: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: "#2E2E5F",
+  },
+  passwordBtnText: {
+    color: "#E2E8F0",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  noConnectionsBox: {
+    backgroundColor: "#13132B",
+    padding: 18,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  actionButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    textAlign: "center",
-  },
-  noConnectionsContainer: {
-    backgroundColor: "#F8F9FA",
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    marginVertical: 8,
+    borderColor: "#1E1E3F",
     alignItems: "center",
   },
   noConnectionsText: {
-    fontSize: 16,
-    color: "#636E72",
+    color: "#8E8EA8",
+    fontSize: 14,
     textAlign: "center",
+    lineHeight: 20,
   },
-  bottomNav: {
-    flexDirection: "row",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    backgroundColor: "#FFFFFF",
-  },
-  navItem: {
+  // Dark Modal
+  darkModal: {
     flex: 1,
-    alignItems: "center",
-    paddingVertical: 8,
+    backgroundColor: "#0A0A1C",
   },
-  activeNavItem: {
-    backgroundColor: "#F8F7FF",
-    borderRadius: 12,
-  },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 4,
-  },
-  activeNavIcon: {
-    fontSize: 22,
-  },
-  navLabel: {
-    fontSize: 12,
-    color: "#636E72",
-  },
-  activeNavLabel: {
-    color: "#6C5CE7",
-    fontWeight: "600",
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  modalHeader: {
+  darkModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#2D3436",
-  },
-  closeButton: {
-    fontSize: 20,
-    color: "#636E72",
-    padding: 4,
-  },
-  connectionsContent: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  connectionsSectionTitle: {
+  darkModalTitle: {
     fontSize: 18,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginVertical: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
-  connectionItem: {
+  closeModalText: {
+    color: "#8E8EA8",
+    fontSize: 20,
+  },
+  modalScrollContent: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  emptyText: {
+    color: "#8E8EA8",
+    fontSize: 14,
+  },
+  // Connection Row Card
+  connectionCard: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    padding: 14,
+    backgroundColor: "#13132B",
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#1E1E3F",
   },
-  connectionImage: {
+  connectionAvatar: {
     width: 50,
     height: 50,
     borderRadius: 25,
   },
   connectionInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 14,
   },
   connectionName: {
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 2,
+  },
+  connectionText: {
+    fontSize: 12,
+    color: "#8E8EA8",
+  },
+  mutualText: {
+    fontSize: 12,
+    color: "#00F0FF",
     fontWeight: "600",
-    color: "#2D3436",
-  },
-  connectionDetails: {
-    fontSize: 12,
-    color: "#636E72",
-    marginTop: 2,
-  },
-  mutualConnections: {
-    fontSize: 12,
-    color: "#6C5CE7",
-    marginTop: 2,
+    marginTop: 4,
   },
   degreeIndicator: {
     width: 32,
@@ -712,161 +732,149 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   firstDegree: {
-    backgroundColor: "#00B894",
+    backgroundColor: "#FF2D8F",
   },
   secondDegree: {
-    backgroundColor: "#FDCB6E",
+    backgroundColor: "#FFB800",
   },
   degreeText: {
     color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
+    fontSize: 11,
+    fontWeight: "900",
   },
-  emptyConnectionsContainer: {
+  // Popups/Modals overlays
+  overlay: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 60,
-  },
-  emptyConnectionsText: {
-    fontSize: 18,
-    color: "#636E72",
-    marginBottom: 8,
-  },
-  emptyConnectionsSubtext: {
-    fontSize: 14,
-    color: "#636E72",
-    textAlign: "center",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(3, 3, 10, 0.75)",
     justifyContent: "center",
     alignItems: "center",
   },
-  connectionDetailModal: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+  glassModal: {
+    backgroundColor: "#111126",
+    borderRadius: 24,
     padding: 24,
     margin: 20,
+    width: "85%",
+    maxWidth: 320,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    minWidth: 300,
+    borderWidth: 1,
+    borderColor: "#222240",
   },
-  detailProfileImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-    borderWidth: 3,
-    borderColor: "#6C5CE7",
+  detailAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 14,
+    borderWidth: 2,
+    borderColor: "#FF2D8F",
   },
   detailName: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 8,
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 6,
     textAlign: "center",
   },
   detailBio: {
-    fontSize: 16,
-    color: "#636E72",
+    fontSize: 13,
+    color: "#B2B2CC",
     textAlign: "center",
     marginBottom: 16,
-    lineHeight: 22,
+    lineHeight: 18,
+    paddingHorizontal: 8,
   },
-  educationInfo: {
-    backgroundColor: "#F8F9FA",
-    padding: 16,
+  educationCard: {
+    backgroundColor: "#161633",
+    padding: 12,
     borderRadius: 12,
-    marginBottom: 16,
     width: "100%",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#22224A",
   },
-  educationLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 8,
+  educationTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 6,
   },
   educationText: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 4,
+    fontSize: 12,
+    color: "#8E8EA8",
+    marginBottom: 2,
   },
-  mutualConnectionsDetail: {
-    fontSize: 14,
-    color: "#6C5CE7",
-    marginBottom: 20,
-    fontWeight: "500",
+  mutualLabel: {
+    fontSize: 12,
+    color: "#00F0FF",
+    fontWeight: "700",
+    marginBottom: 18,
   },
   detailButtons: {
     flexDirection: "row",
     gap: 12,
+    width: "100%",
   },
-  connectButton: {
-    backgroundColor: "#6C5CE7",
-    paddingHorizontal: 20,
+  modalBtn: {
+    flex: 1,
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  connectButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+  msgBtn: {
+    backgroundColor: "#00F0FF",
   },
-  closeDetailButton: {
-    backgroundColor: "#F8F9FA",
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
+  msgBtnText: {
+    color: "#0B0B1E",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  cancelBtn: {
+    backgroundColor: "#1C1C3A",
     borderWidth: 1,
-    borderColor: "#E9ECEF",
+    borderColor: "#2E2E5F",
   },
-  closeDetailButtonText: {
-    color: "#636E72",
-    fontSize: 16,
+  cancelBtnText: {
+    color: "#8E8EA8",
+    fontSize: 13,
     fontWeight: "600",
   },
-  passwordForm: {
+  // Form modal
+  formContainer: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 24,
   },
-  inputGroup: {
+  formGroup: {
     marginBottom: 20,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
+  formLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#8E8EA8",
     marginBottom: 8,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: "#DDD",
+  darkTextInput: {
+    backgroundColor: "#13132B",
+    borderWidth: 1.5,
+    borderColor: "#1E1E3F",
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    backgroundColor: "#F8F9FA",
+    paddingVertical: 13,
+    fontSize: 14,
+    color: "#FFFFFF",
   },
-  saveButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 16,
+  submitButton: {
+    backgroundColor: "#00F0FF",
+    paddingVertical: 15,
     borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 20,
   },
-  saveButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
+  submitButtonText: {
+    color: "#0B0B1E",
+    fontSize: 15,
+    fontWeight: "700",
   },
 })

@@ -1,4 +1,4 @@
-import React, { useState, createContext, useContext } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -14,20 +14,6 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../src/context/AuthContext';
-
-// Add this type definition at the top
-export type AuthContextType = {
-  user: any;
-  token: string | null;
-  loading: boolean;
-  isAuthenticated: boolean;
-  login: (phoneNumber: string, password: string) => Promise<any>;
-  signup: (...args: any[]) => Promise<any>;
-  logout: () => Promise<void>;
-  updateUser: (userData: any) => Promise<void>;
-};
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export default function LoginScreen() {
   const [formData, setFormData] = useState({
@@ -73,7 +59,6 @@ export default function LoginScreen() {
     try {
       await login(formData.phoneNumber, formData.password);
       
-      // Success - navigate to main app
       Alert.alert(
         'Welcome back!', 
         'Login successful',
@@ -87,7 +72,7 @@ export default function LoginScreen() {
       
     }  catch (error) {
       console.error('Login error:', error);
-      const err = error as any; // <-- concise type guard
+      const err = error as any;
     
       let errorMessage = 'Something went wrong. Please try again.';
     
@@ -100,17 +85,20 @@ export default function LoginScreen() {
       }
     
       Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F23" />
       
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity 
@@ -130,7 +118,8 @@ export default function LoginScreen() {
               <Text style={styles.label}>Phone Number</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your phone number"
+                placeholder="e.g. 9876543210"
+                placeholderTextColor="#666"
                 value={formData.phoneNumber}
                 onChangeText={(text) => handleInputChange('phoneNumber', text)}
                 keyboardType="phone-pad"
@@ -144,7 +133,8 @@ export default function LoginScreen() {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
+                placeholder="••••••••"
+                placeholderTextColor="#666"
                 value={formData.password}
                 onChangeText={(text) => handleInputChange('password', text)}
                 secureTextEntry
@@ -164,7 +154,7 @@ export default function LoginScreen() {
               disabled={loading}
             >
               <Text style={styles.loginButtonText}>
-                {loading ? 'Signing In...' : 'Sign In'}
+                {loading ? 'Authenticating...' : 'Sign In'}
               </Text>
             </TouchableOpacity>
 
@@ -185,95 +175,113 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0F0F23',
   },
   keyboardView: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
+  scrollContainer: {
+    flexGrow: 1,
     paddingBottom: 40,
   },
+  header: {
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 30,
+  },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#1C1C3A',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#2E2E5F',
   },
   backButtonText: {
-    fontSize: 24,
-    color: '#6C5CE7',
+    fontSize: 20,
+    color: '#00F0FF',
+    fontWeight: 'bold',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2D3436',
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#8E8EA8',
   },
   form: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 22,
   },
   label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2D3436',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#8E8EA8',
     marginBottom: 8,
+    letterSpacing: 0.2,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#DDD',
+    backgroundColor: '#13132B',
+    borderWidth: 1.5,
+    borderColor: '#1E1E3F',
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
-    backgroundColor: '#F8F9FA',
+    paddingVertical: 13,
+    fontSize: 14,
+    color: '#FFFFFF',
   },
   forgotPasswordContainer: {
     alignItems: 'flex-end',
     marginBottom: 30,
   },
   forgotPasswordText: {
-    fontSize: 14,
-    color: '#6C5CE7',
-    fontWeight: '500',
+    fontSize: 13,
+    color: '#00F0FF',
+    fontWeight: '700',
   },
   loginButton: {
-    backgroundColor: '#6C5CE7',
-    paddingVertical: 16,
+    backgroundColor: '#FF2D8F',
+    paddingVertical: 15,
     borderRadius: 12,
-    marginBottom: 30,
+    marginBottom: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF2D8F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   disabledButton: {
-    backgroundColor: '#B2B2B2',
+    backgroundColor: '#66163E',
   },
   loginButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     textAlign: 'center',
   },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 30,
   },
   signupText: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#8E8EA8',
   },
   signupLink: {
-    fontSize: 16,
-    color: '#6C5CE7',
-    fontWeight: '600',
+    fontSize: 14,
+    color: '#FF2D8F',
+    fontWeight: '700',
   },
 });

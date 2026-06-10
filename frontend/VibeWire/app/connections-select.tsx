@@ -12,7 +12,6 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import api, { userAPI } from '../src/services/api';
-
 import { useAuth } from '../src/context/AuthContext';
 
 interface Connection {
@@ -36,7 +35,12 @@ export default function ConnectionsScreen() {
     const fetchUsers = async () => {
       try {
         const users = await userAPI.getAllUsers();
-        setConnections(users.filter(u => u.id !== user.id));
+        // Mapped fallback profile image
+        const mappedUsers = (users || []).map((u: any) => ({
+          ...u,
+          profileImage: u.profileImage || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200'
+        }));
+        setConnections(mappedUsers.filter((u: any) => u.id !== user?.id));
       } catch (error) {
         console.error('Error fetching users:', error);
         Alert.alert('Error', 'Failed to fetch users. Please try again.');
@@ -51,10 +55,8 @@ export default function ConnectionsScreen() {
   const toggleConnection = (connectionId: string) => {
     setSelectedConnections(prev => {
       if (prev.includes(connectionId)) {
-        // Remove connection
         return prev.filter(id => id !== connectionId);
       } else {
-        // Add connection (max 8)
         if (prev.length >= 8) {
           Alert.alert('Limit Reached', 'You can select up to 8 connections only.');
           return prev;
@@ -71,12 +73,11 @@ export default function ConnectionsScreen() {
     }
 
     try {
-      // POST selected connection IDs to backend
       await api.post('/api/connections', {
         friendIds: selectedConnections.map(id => parseInt(id, 10)),
       });
-      // On success, go to home
-      router.replace('/(tabs)/');
+      router.replace('/(tabs)');
+
     } catch (error) {
       console.error('Error saving connections:', error);
       Alert.alert('Error', 'Failed to save connections. Please try again.');
@@ -96,9 +97,9 @@ export default function ConnectionsScreen() {
           
           <View style={styles.connectionInfo}>
             <Text style={styles.connectionName}>{connection.name}</Text>
-            <Text style={styles.connectionDetails}>{connection.course}</Text>
-            <Text style={styles.connectionDetails}>{connection.bhawan} • {connection.year}</Text>
-            <Text style={styles.connectionBio} numberOfLines={2}>{connection.bio}</Text>
+            <Text style={styles.connectionDetails}>{connection.course || "B.Tech"}</Text>
+            <Text style={styles.connectionDetails}>{connection.bhawan || "Rajendra"} • {connection.year || "3rd Year"}</Text>
+            <Text style={styles.connectionBio} numberOfLines={2}>{connection.bio || "No bio yet."}</Text>
           </View>
           
           <View style={[styles.checkmark, isSelected && styles.selectedCheckmark]}>
@@ -111,7 +112,7 @@ export default function ConnectionsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F23" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -150,6 +151,7 @@ export default function ConnectionsScreen() {
             selectedConnections.length === 0 && styles.disabledButton
           ]}
           onPress={handleContinue}
+          disabled={selectedConnections.length === 0}
         >
           <Text style={styles.continueButtonText}>
             Continue ({selectedConnections.length})
@@ -163,65 +165,71 @@ export default function ConnectionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0F0F23',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 20,
+    paddingHorizontal: 24,
+    paddingTop: 30,
+    paddingBottom: 15,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#1C1C3A',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#2E2E5F',
   },
   backButtonText: {
-    fontSize: 24,
-    color: '#6C5CE7',
+    fontSize: 20,
+    color: '#00F0FF',
+    fontWeight: 'bold',
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2D3436',
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#8E8EA8',
     lineHeight: 22,
   },
   counterContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingBottom: 15,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   counterText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6C5CE7',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#00F0FF',
   },
   minText: {
-    fontSize: 14,
-    color: '#636E72',
+    fontSize: 12,
+    color: '#8E8EA8',
   },
   connectionsList: {
     flex: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   card: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#13132B',
     borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: 'transparent',
   },
   selectedCard: {
-    borderColor: '#6C5CE7',
-    backgroundColor: '#F5F3FF',
+    borderColor: '#FF2D8F',
+    backgroundColor: '#18122B',
   },
   cardContent: {
     flexDirection: 'row',
@@ -232,66 +240,71 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: 12,
+    marginRight: 14,
   },
   connectionInfo: {
     flex: 1,
   },
   connectionName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3436',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 4,
   },
   connectionDetails: {
-    fontSize: 14,
-    color: '#636E72',
+    fontSize: 12,
+    color: '#8E8EA8',
     marginBottom: 2,
   },
   connectionBio: {
-    fontSize: 14,
-    color: '#636E72',
+    fontSize: 12,
+    color: '#8E8EA8',
     marginTop: 4,
-    lineHeight: 18,
+    lineHeight: 16,
   },
   checkmark: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#DDD',
+    borderColor: '#222240',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
   },
   selectedCheckmark: {
-    backgroundColor: '#6C5CE7',
-    borderColor: '#6C5CE7',
+    backgroundColor: '#FF2D8F',
+    borderColor: '#FF2D8F',
   },
   checkmarkText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
   },
   bottomContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingVertical: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0F0F23',
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#1A1A36',
   },
   continueButton: {
-    backgroundColor: '#6C5CE7',
-    paddingVertical: 16,
+    backgroundColor: '#FF2D8F',
+    paddingVertical: 15,
     borderRadius: 12,
     alignItems: 'center',
+    shadowColor: '#FF2D8F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   disabledButton: {
-    backgroundColor: '#B2B2B2',
+    backgroundColor: '#66163E',
   },
   continueButtonText: {
     color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

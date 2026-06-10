@@ -1,21 +1,5 @@
-"use client"
-
 import { useState, useEffect } from "react"
-import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  Modal,
-  SafeAreaView,
-  Alert,
-  TextInput,
-  FlatList,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native"
+import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, Modal, SafeAreaView, Alert, TextInput, FlatList, Dimensions, ActivityIndicator } from "react-native"
 import { hangoutAPI } from "../../src/services/api"
 import { userAPI } from "../../src/services/api"
 
@@ -79,11 +63,26 @@ export default function Hangouts() {
           hangoutAPI.getHangouts(),
           userAPI.getAllUsers(),
         ])
-        setHangouts(hangoutsData)
-        setConnections(connectionsData)
+        
+        // Add defaults for images
+        const mappedHangouts = (hangoutsData || []).map((h: any) => ({
+          ...h,
+          participants: (h.participants || []).map((p: any) => ({
+            ...p,
+            image: p.image || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200'
+          }))
+        }));
+
+        const mappedConnections = (connectionsData || []).map((c: any) => ({
+          ...c,
+          image: c.image || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200'
+        }));
+
+        setHangouts(mappedHangouts)
+        setConnections(mappedConnections)
         setError(null)
       } catch (err) {
-        setError("Failed to fetch data. Please try again later.")
+        setError("Failed to fetch hangouts. Please pull to refresh.")
         console.error(err)
       } finally {
         setLoading(false)
@@ -93,60 +92,69 @@ export default function Hangouts() {
     fetchData()
   }, [])
 
-
   const filteredHangouts = hangouts.filter((hangout) => activeFilter === "all" || hangout.status === activeFilter)
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "upcoming":
-        return "#6C5CE7"
+        return "#00F0FF" // Cyan
       case "ongoing":
-        return "#00B894"
+        return "#00E676" // Neon Green
       case "completed":
-        return "#636E72"
+        return "#8E8EA8" // Muted Gray
       default:
-        return "#6C5CE7"
+        return "#00F0FF"
     }
   }
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "upcoming":
-        return "📅"
+        return "⚡"
       case "ongoing":
         return "🔴"
       case "completed":
-        return "✅"
+        return "✓"
       default:
-        return "📅"
+        return "⚡"
     }
   }
 
-  const handleCreateHangout = () => {
+  const handleCreateHangout = async () => {
     if (!hangoutTitle || !hangoutDate || !hangoutTime || !hangoutVenue) {
       Alert.alert("Error", "Please fill in all required fields")
       return
     }
 
-    const newHangout: Hangout = {
-      id: Date.now().toString(),
-      title: hangoutTitle,
-      date: hangoutDate,
-      time: hangoutTime,
-      venue: hangoutVenue,
-      description: hangoutDescription,
-      participants: selectedParticipants,
-      maxParticipants: Number.parseInt(maxParticipants),
-      createdBy: "USR123456",
-      hostName: "You",
-      status: "upcoming",
-      pendingRequests: [],
+    try {
+      const hangoutData = {
+        title: hangoutTitle,
+        date: hangoutDate,
+        time: hangoutTime,
+        venue: hangoutVenue,
+        description: hangoutDescription,
+        maxParticipants: Number.parseInt(maxParticipants),
+        participantIds: selectedParticipants.map((p) => parseInt(p.id, 10)),
+      }
+      await hangoutAPI.createHangout(hangoutData)
+      
+      // Refresh hangouts
+      const hangoutsData = await hangoutAPI.getHangouts()
+      const mapped = (hangoutsData || []).map((h: any) => ({
+        ...h,
+        participants: (h.participants || []).map((p: any) => ({
+          ...p,
+          image: p.image || 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200'
+        }))
+      }));
+      setHangouts(mapped)
+      Alert.alert("Success!", `Hangout "${hangoutTitle}" has been created!`)
+      resetForm()
+      setShowCreateModal(false)
+    } catch (error) {
+      console.error('Error creating hangout:', error)
+      Alert.alert("Error", "Failed to create hangout. Please try again.")
     }
-
-    setHangouts((prev) => [newHangout, ...prev])
-    Alert.alert("Success!", `Hangout "${hangoutTitle}" has been created!`)
-    resetForm()
-    setShowCreateModal(false)
   }
 
   const resetForm = () => {
@@ -212,12 +220,11 @@ export default function Hangouts() {
       {
         text: "Send Request",
         onPress: () => {
-          // Add to pending requests (mock current user)
           const currentUser: Connection = {
             id: "current_user",
             name: "You",
             bio: "Current user",
-            image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=80&h=80&fit=crop&crop=face",
+            image: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200",
             degree: 1,
           }
 
@@ -239,135 +246,205 @@ export default function Hangouts() {
     ])
   }
 
-  const renderHangoutCard = ({ item }: { item: Hangout }) => (
-    <TouchableOpacity
-      style={styles.hangoutCard}
-      onPress={() => {
-        setSelectedHangout(item)
-        setShowDetailModal(true)
-      }}
-    >
-      <View style={styles.hangoutHeader}>
-        <View style={styles.hangoutTitleRow}>
-          <Text style={styles.hangoutTitle}>{item.title}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-            <Text style={styles.statusText}>
+  const renderHangoutCard = ({ item }: { item: Hangout }) => {
+    const isSlotsFull = item.participants.length >= item.maxParticipants;
+    
+    return (
+      <TouchableOpacity
+        style={styles.hangoutCard}
+        onPress={() => {
+          setSelectedHangout(item)
+          setShowDetailModal(true)
+        }}
+      >
+        <View style={styles.cardTop}>
+          <View style={styles.cardMeta}>
+            <Text style={styles.cardTitle}>{item.title}</Text>
+            <Text style={styles.cardTime}>📅 {item.date} • {item.time}</Text>
+            <Text style={styles.cardVenue}>📍 {item.venue}</Text>
+            <Text style={styles.cardHost}>👤 Host: {item.hostName || "Host"}</Text>
+          </View>
+          <View style={[styles.statusBadge, { borderColor: getStatusColor(item.status) }]}>
+            <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
               {getStatusIcon(item.status)} {item.status.toUpperCase()}
             </Text>
           </View>
         </View>
-        <Text style={styles.hangoutDate}>
-          {item.date} at {item.time}
-        </Text>
-        <Text style={styles.hangoutVenue}>📍 {item.venue}</Text>
-        <Text style={styles.hangoutHost}>👤 Hosted by {item.hostName}</Text>
-      </View>
 
-      <View style={styles.hangoutDetails}>
-        <Text style={styles.hangoutDescription} numberOfLines={2}>
-          {item.description || "No description provided"}
-        </Text>
+        <View style={styles.cardDivider} />
 
-        <View style={styles.participantsSection}>
-          <View style={styles.participantImages}>
-            {item.participants.slice(0, 3).map((participant, index) => (
-              <Image
-                key={participant.id}
-                source={{ uri: participant.image }}
-                style={[styles.participantImage, { marginLeft: index > 0 ? -8 : 0 }]}
-              />
-            ))}
-            {item.participants.length > 3 && (
-              <View style={[styles.participantImage, styles.moreParticipants, { marginLeft: -8 }]}>
-                <Text style={styles.moreParticipantsText}>+{item.participants.length - 3}</Text>
-              </View>
-            )}
+        <View style={styles.cardBottom}>
+          <Text style={styles.cardDescription} numberOfLines={2}>
+            {item.description || "No details provided."}
+          </Text>
+
+          <View style={styles.attendeesSection}>
+            <View style={styles.attendeeAvatars}>
+              {item.participants.slice(0, 4).map((participant, index) => (
+                <Image
+                  key={participant.id}
+                  source={{ uri: participant.image }}
+                  style={[styles.attendeeAvatar, { marginLeft: index > 0 ? -10 : 0 }]}
+                />
+              ))}
+              {item.participants.length > 4 && (
+                <View style={[styles.attendeeAvatar, styles.moreAvatars, { marginLeft: -10 }]}>
+                  <Text style={styles.moreAvatarsText}>+{item.participants.length - 4}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={[styles.slotProgressText, isSlotsFull && styles.slotsFullText]}>
+              {item.participants.length} / {item.maxParticipants} slots
+            </Text>
           </View>
-          <Text style={styles.participantCount}>
-            {item.participants.length}/{item.maxParticipants} joined
-          </Text>
         </View>
-      </View>
 
-      {item.status === "upcoming" && item.createdBy !== "USR123456" && (
-        <TouchableOpacity style={styles.joinButton} onPress={() => handleJoinHangout(item)}>
-          <Text style={styles.joinButtonText}>Join Hangout</Text>
-        </TouchableOpacity>
-      )}
+        {item.status === "upcoming" && item.createdBy !== "USR123456" && (
+          <TouchableOpacity style={[styles.cardBtn, styles.joinBtn]} onPress={() => handleJoinHangout(item)}>
+            <Text style={styles.joinBtnText}>Join Hangout</Text>
+          </TouchableOpacity>
+        )}
 
-      {item.createdBy === "USR123456" && item.pendingRequests && item.pendingRequests.length > 0 && (
-        <TouchableOpacity
-          style={styles.approveButton}
-          onPress={() => {
-            setSelectedHangout(item)
-            setShowApprovalModal(true)
-          }}
-        >
-          <Text style={styles.approveButtonText}>
-            {item.pendingRequests.length} Pending Request{item.pendingRequests.length > 1 ? "s" : ""}
-          </Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  )
+        {item.createdBy === "USR123456" && item.pendingRequests && item.pendingRequests.length > 0 && (
+          <TouchableOpacity
+            style={[styles.cardBtn, styles.pendingBtn]}
+            onPress={() => {
+              setSelectedHangout(item)
+              setShowApprovalModal(true)
+            }}
+          >
+            <Text style={styles.pendingBtnText}>
+              ⚡ {item.pendingRequests.length} Pending Approval{item.pendingRequests.length > 1 ? "s" : ""}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </TouchableOpacity>
+    )
+  }
 
-  const renderFilterButton = (filter: typeof activeFilter, label: string) => (
-    <TouchableOpacity
-      style={[styles.filterButton, activeFilter === filter && styles.activeFilterButton]}
-      onPress={() => setActiveFilter(filter)}
-    >
-      <Text style={[styles.filterButtonText, activeFilter === filter && styles.activeFilterButtonText]}>{label}</Text>
-    </TouchableOpacity>
-  )
+  const renderFilterButton = (filter: typeof activeFilter, label: string) => {
+    const isActive = activeFilter === filter;
+    return (
+      <TouchableOpacity
+        style={[styles.filterTab, isActive && styles.activeFilterTab]}
+        onPress={() => setActiveFilter(filter)}
+      >
+        <Text style={[styles.filterTabText, isActive && styles.activeFilterTabText]}>{label}</Text>
+      </TouchableOpacity>
+    );
+  }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>My Hangouts</Text>
-        <TouchableOpacity style={styles.createButton} onPress={() => setShowCreateModal(true)}>
-          <Text style={styles.createButtonText}>+ Create</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <Text style={styles.title}>Crew Hangouts</Text>
+          <TouchableOpacity style={styles.headerCreateBtn} onPress={() => setShowCreateModal(true)}>
+            <Text style={styles.headerCreateBtnText}>+ Create</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.filterContainer}
-        contentContainerStyle={styles.filterContent}
-      >
-        {renderFilterButton("all", "All")}
-        {renderFilterButton("upcoming", "Soon")}
-        {renderFilterButton("ongoing", "Live")}
-        {renderFilterButton("completed", "Past")}
-      </ScrollView>
+      <View style={styles.filterBarContainer}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterContent}
+        >
+          {renderFilterButton("all", "All Events")}
+          {renderFilterButton("upcoming", "Soon ⚡")}
+          {renderFilterButton("ongoing", "Live 🔴")}
+          {renderFilterButton("completed", "Past ✓")}
+        </ScrollView>
+      </View>
 
       {/* Hangouts List */}
       {loading ? (
-        <ActivityIndicator size="large" color="#6C5CE7" style={{ flex: 1 }} />
-      ) : error ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>{error}</Text>
+        <View style={[styles.container, styles.center]}>
+          <ActivityIndicator size="large" color="#00F0FF" />
+          <Text style={styles.loadingText}>Synchronizing Hangouts...</Text>
         </View>
+      ) : error ? (
+        <View style={[styles.container, styles.center, { padding: 30 }]}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : filteredHangouts.length === 0 ? (
+        <ScrollView contentContainerStyle={[styles.container, styles.center, { paddingBottom: 100 }]}>
+          <Text style={styles.emptyIcon}>🎭</Text>
+          <Text style={styles.emptyText}>No hangouts scheduled in this filter.</Text>
+          <TouchableOpacity style={[styles.cardBtn, styles.joinBtn, { paddingHorizontal: 24, marginTop: 16 }]} onPress={() => setShowCreateModal(true)}>
+            <Text style={styles.joinBtnText}>Schedule First Hangout</Text>
+          </TouchableOpacity>
+        </ScrollView>
       ) : (
         <FlatList
           data={filteredHangouts}
           renderItem={renderHangoutCard}
           keyExtractor={(item) => item.id}
-          style={styles.hangoutsList}
-          contentContainerStyle={styles.hanloutsListContent}
+          contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>No hangouts found</Text>
-              <TouchableOpacity style={styles.emptyStateButton} onPress={() => setShowCreateModal(true)}>
-                <Text style={styles.emptyStateButtonText}>Create Your First Hangout</Text>
-              </TouchableOpacity>
-            </View>
-          }
         />
       )}
+
+      {/* Detail Modal */}
+      <Modal
+        visible={showDetailModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowDetailModal(false)}
+      >
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Hangout Details</Text>
+            <TouchableOpacity onPress={() => setShowDetailModal(false)}>
+              <Text style={styles.closeModalText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          {selectedHangout && (
+            <ScrollView style={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.detailSection}>
+                <Text style={styles.detailTitle}>{selectedHangout.title}</Text>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailText}>📅 {selectedHangout.date} • {selectedHangout.time}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailText}>📍 {selectedHangout.venue}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailText}>👤 Hosted by {selectedHangout.hostName}</Text>
+                </View>
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.sectionHeading}>Details</Text>
+                <Text style={styles.descriptionText}>{selectedHangout.description || "No description provided."}</Text>
+              </View>
+
+              <View style={styles.detailSection}>
+                <Text style={styles.sectionHeading}>Crew Joined ({selectedHangout.participants.length})</Text>
+                {selectedHangout.participants.map((participant) => (
+                  <View key={participant.id} style={styles.participantItem}>
+                    <Image source={{ uri: participant.image }} style={styles.participantAvatar} />
+                    <View style={styles.participantInfo}>
+                      <Text style={styles.participantName}>{participant.name}</Text>
+                      <Text style={styles.participantBio} numberOfLines={1}>{participant.bio || "No bio yet."}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              {selectedHangout.status === "upcoming" && selectedHangout.createdBy !== "USR123456" && (
+                <TouchableOpacity style={[styles.cardBtn, styles.joinBtn, { marginVertical: 24 }]} onPress={() => handleJoinHangout(selectedHangout)}>
+                  <Text style={styles.joinBtnText}>Send Request to Join</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
 
       {/* Create Hangout Modal */}
       <Modal
@@ -376,796 +453,673 @@ export default function Hangouts() {
         presentationStyle="fullScreen"
         onRequestClose={() => setShowCreateModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create New Hangout</Text>
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Schedule Hangout</Text>
             <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+              <Text style={styles.closeModalText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Hangout Title *</Text>
+          <ScrollView style={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Title *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutTitle}
                 onChangeText={setHangoutTitle}
-                placeholder="e.g., Study Session, Movie Night"
-                placeholderTextColor="#999"
+                placeholder="e.g. Chai Session, Hack Night"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
+            <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Date *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutDate}
                 onChangeText={setHangoutDate}
-                placeholder="DD/MM/YYYY"
-                placeholderTextColor="#999"
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
+            <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Time *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutTime}
                 onChangeText={setHangoutTime}
-                placeholder="HH:MM AM/PM"
-                placeholderTextColor="#999"
+                placeholder="HH:MM"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
+            <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Venue *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutVenue}
                 onChangeText={setHangoutVenue}
-                placeholder="e.g., Library, Cafe, Park"
-                placeholderTextColor="#999"
+                placeholder="e.g. MAC Cafeteria, Nescafe Kiosk"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
+            <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Description</Text>
               <TextInput
-                style={[styles.textInput, styles.textArea]}
+                style={[styles.darkTextInput, styles.textArea]}
                 value={hangoutDescription}
                 onChangeText={setHangoutDescription}
-                placeholder="Tell people what this hangout is about..."
-                placeholderTextColor="#999"
+                placeholder="Details about the hangout..."
+                placeholderTextColor="#666"
                 multiline
                 numberOfLines={3}
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Maximum Participants</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Max Crew Size</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={maxParticipants}
                 onChangeText={setMaxParticipants}
-                placeholder="4"
                 keyboardType="numeric"
-                placeholderTextColor="#999"
+                placeholder="4"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Invite People</Text>
-              <View style={styles.participantsList}>
-                {selectedParticipants.map((participant) => (
-                  <View key={participant.id} style={styles.participantChip}>
-                    <Image source={{ uri: participant.image }} style={styles.participantChipImage} />
-                    <Text style={styles.participantChipName}>{participant.name}</Text>
-                    <TouchableOpacity onPress={() => toggleParticipant(participant)} style={styles.removeParticipant}>
-                      <Text style={styles.removeParticipantText}>×</Text>
+            <View style={styles.formGroup}>
+              <Text style={styles.formLabel}>Selected Crew to Invite</Text>
+              <View style={styles.chipList}>
+                {selectedParticipants.map((p) => (
+                  <View key={p.id} style={styles.chip}>
+                    <Image source={{ uri: p.image }} style={styles.chipAvatar} />
+                    <Text style={styles.chipText}>{p.name.split(" ")[0]}</Text>
+                    <TouchableOpacity onPress={() => toggleParticipant(p)} style={styles.removeChip}>
+                      <Text style={styles.removeChipText}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
               </View>
 
-              <TouchableOpacity style={styles.inviteMoreButton} onPress={() => setShowInviteModal(true)}>
-                <Text style={styles.inviteMoreButtonText}>+ Invite People</Text>
+              <TouchableOpacity style={styles.dashedAddBtn} onPress={() => setShowInviteModal(true)}>
+                <Text style={styles.dashedAddBtnText}>+ Select Connections to Invite</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.createHangoutButton} onPress={handleCreateHangout}>
-              <Text style={styles.createHangoutButtonText}>Create Hangout</Text>
+            <TouchableOpacity style={[styles.cardBtn, styles.joinBtn, styles.submitBtn]} onPress={handleCreateHangout}>
+              <Text style={styles.joinBtnText}>Schedule Hangout</Text>
             </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
-      {/* Hangout Detail Modal */}
-      <Modal
-        visible={showDetailModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowDetailModal(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Hangout Details</Text>
-            <TouchableOpacity onPress={() => setShowDetailModal(false)}>
-              <Text style={styles.closeButton}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          {selectedHangout && (
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <View style={styles.detailSection}>
-                <Text style={styles.detailTitle}>{selectedHangout.title}</Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: getStatusColor(selectedHangout.status), alignSelf: "flex-start" },
-                  ]}
-                >
-                  <Text style={styles.statusText}>
-                    {getStatusIcon(selectedHangout.status)} {selectedHangout.status.toUpperCase()}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>📅 Date & Time</Text>
-                <Text style={styles.detailText}>
-                  {selectedHangout.date} at {selectedHangout.time}
-                </Text>
-              </View>
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>📍 Venue</Text>
-                <Text style={styles.detailText}>{selectedHangout.venue}</Text>
-              </View>
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>👤 Host</Text>
-                <Text style={styles.detailText}>{selectedHangout.hostName}</Text>
-              </View>
-
-              {selectedHangout.description && (
-                <View style={styles.detailSection}>
-                  <Text style={styles.detailLabel}>📝 Description</Text>
-                  <Text style={styles.detailText}>{selectedHangout.description}</Text>
-                </View>
-              )}
-
-              <View style={styles.detailSection}>
-                <Text style={styles.detailLabel}>
-                  👥 Participants ({selectedHangout.participants.length}/{selectedHangout.maxParticipants})
-                </Text>
-                {selectedHangout.participants.map((participant) => (
-                  <View key={participant.id} style={styles.participantItem}>
-                    <Image source={{ uri: participant.image }} style={styles.participantItemImage} />
-                    <View style={styles.participantItemInfo}>
-                      <Text style={styles.participantItemName}>{participant.name}</Text>
-                      <Text style={styles.participantItemBio}>{participant.bio}</Text>
-                    </View>
-                  </View>
-                ))}
-              </View>
-
-              {selectedHangout.createdBy === "USR123456" &&
-                selectedHangout.pendingRequests &&
-                selectedHangout.pendingRequests.length > 0 && (
-                  <View style={styles.detailSection}>
-                    <Text style={styles.detailLabel}>
-                      ⏳ Pending Requests ({selectedHangout.pendingRequests.length})
-                    </Text>
-                    {selectedHangout.pendingRequests.map((request) => (
-                      <View key={request.id} style={styles.pendingRequestItem}>
-                        <Image source={{ uri: request.image }} style={styles.participantItemImage} />
-                        <View style={styles.participantItemInfo}>
-                          <Text style={styles.participantItemName}>{request.name}</Text>
-                          <Text style={styles.participantItemBio}>{request.bio}</Text>
-                        </View>
-                        <View style={styles.approvalButtons}>
-                          <TouchableOpacity
-                            style={styles.approveBtn}
-                            onPress={() => handleApproveRequest(selectedHangout.id, request)}
-                          >
-                            <Text style={styles.approveBtnText}>✓</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            style={styles.rejectBtn}
-                            onPress={() => handleRejectRequest(selectedHangout.id, request)}
-                          >
-                            <Text style={styles.rejectBtnText}>✕</Text>
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-              {selectedHangout.status === "upcoming" && selectedHangout.createdBy !== "USR123456" && (
-                <TouchableOpacity style={styles.joinDetailButton} onPress={() => handleJoinHangout(selectedHangout)}>
-                  <Text style={styles.joinDetailButtonText}>Join This Hangout</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </Modal>
-
-      {/* Invite People Modal */}
+      {/* Invite Selection Modal */}
       <Modal
         visible={showInviteModal}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowInviteModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Invite People</Text>
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Invite Network</Text>
             <TouchableOpacity onPress={() => setShowInviteModal(false)}>
-              <Text style={styles.closeButton}>Done</Text>
+              <Text style={styles.closeModalText}>Done</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            <Text style={styles.sectionHeader}>1st Degree Connections</Text>
-            {connections
-              .filter((connection) => connection.degree === 1)
-              .map((connection) => {
-                const isSelected = selectedParticipants.find((p) => p.id === connection.id)
-                return (
-                  <TouchableOpacity
-                    key={connection.id}
-                    style={[styles.connectionItem, isSelected && styles.selectedConnectionItem]}
-                    onPress={() => toggleParticipant(connection)}
-                  >
-                    <Image source={{ uri: connection.image }} style={styles.connectionImage} />
-                    <View style={styles.connectionInfo}>
-                      <Text style={styles.connectionName}>{connection.name}</Text>
-                      <Text style={styles.connectionBio}>{connection.bio}</Text>
-                    </View>
-                    <View style={[styles.degreeIndicator, styles.firstDegree]}>
-                      <Text style={styles.degreeText}>1°</Text>
-                    </View>
-                    <View style={[styles.checkbox, isSelected && styles.checkedBox]}>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                  </TouchableOpacity>
-                )
-              })}
-
-            <Text style={styles.sectionHeader}>2nd Degree Connections</Text>
-            {connections
-              .filter((connection) => connection.degree === 2)
-              .map((connection) => {
-                const isSelected = selectedParticipants.find((p) => p.id === connection.id)
-                return (
-                  <TouchableOpacity
-                    key={connection.id}
-                    style={[styles.connectionItem, isSelected && styles.selectedConnectionItem]}
-                    onPress={() => toggleParticipant(connection)}
-                  >
-                    <Image source={{ uri: connection.image }} style={styles.connectionImage} />
-                    <View style={styles.connectionInfo}>
-                      <Text style={styles.connectionName}>{connection.name}</Text>
-                      <Text style={styles.connectionBio}>{connection.bio}</Text>
-                      {connection.mutualConnections && (
-                        <Text style={styles.mutualConnectionsText}>
-                          {connection.mutualConnections} mutual connections
-                        </Text>
-                      )}
-                    </View>
-                    <View style={[styles.degreeIndicator, styles.secondDegree]}>
-                      <Text style={styles.degreeText}>2°</Text>
-                    </View>
-                    <View style={[styles.checkbox, isSelected && styles.checkedBox]}>
-                      {isSelected && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                  </TouchableOpacity>
-                )
-              })}
-          </ScrollView>
-        </SafeAreaView>
+          <FlatList
+            data={connections}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.modalScrollContent}
+            renderItem={({ item }) => {
+              const isSelected = selectedParticipants.some((p) => p.id === item.id);
+              return (
+                <TouchableOpacity
+                  style={[styles.inviteRow, isSelected && styles.selectedInviteRow]}
+                  onPress={() => toggleParticipant(item)}
+                >
+                  <Image source={{ uri: item.image }} style={styles.inviteAvatar} />
+                  <View style={styles.inviteInfo}>
+                    <Text style={styles.inviteName}>{item.name}</Text>
+                    <Text style={styles.inviteBio} numberOfLines={1}>{item.bio || "No bio yet."}</Text>
+                  </View>
+                  <View style={[styles.checkbox, isSelected && styles.checkedBox]}>
+                    {isSelected && <Text style={styles.checkmarkIcon}>✓</Text>}
+                  </View>
+                </TouchableOpacity>
+              )
+            }}
+          />
+        </View>
       </Modal>
-    </View>
+
+      {/* Approval Requests Modal */}
+      <Modal
+        visible={showApprovalModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowApprovalModal(false)}
+      >
+        <View style={styles.darkModal}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Pending Approvals</Text>
+            <TouchableOpacity onPress={() => setShowApprovalModal(false)}>
+              <Text style={styles.closeModalText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalScrollContent}>
+            {selectedHangout?.pendingRequests?.map((request) => (
+              <View key={request.id} style={styles.pendingRow}>
+                <Image source={{ uri: request.image }} style={styles.pendingAvatar} />
+                <View style={styles.pendingInfo}>
+                  <Text style={styles.pendingName}>{request.name}</Text>
+                  <Text style={styles.pendingBio} numberOfLines={1}>{request.bio || "Wants to join."}</Text>
+                </View>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.approveBtn]}
+                    onPress={() => handleApproveRequest(selectedHangout.id, request)}
+                  >
+                    <Text style={styles.actionBtnText}>✓</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.rejectBtn]}
+                    onPress={() => handleRejectRequest(selectedHangout.id, request)}
+                  >
+                    <Text style={styles.actionBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
+    </SafeAreaView>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0F0F23",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#2D3436",
-  },
-  createButton: {
-    backgroundColor: "#6C5CE7",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  filterContainer: {
-    backgroundColor: "#F8F9FA",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  filterContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 12,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E9ECEF",
-  },
-  activeFilterButton: {
-    backgroundColor: "#6C5CE7",
-    borderColor: "#6C5CE7",
-  },
-  filterButtonText: {
-    fontSize: 14,
-    color: "#636E72",
-    fontWeight: "500",
-  },
-  activeFilterButtonText: {
-    color: "#FFFFFF",
-  },
-  hangoutsList: {
-    flex: 1,
-  },
-  hanloutsListContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  hangoutCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#F0F0F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  hangoutHeader: {
-    marginBottom: 12,
-  },
-  hangoutTitleRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 8,
-  },
-  hangoutTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-    flex: 1,
-    marginRight: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    color: "#FFFFFF",
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  hangoutDate: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 4,
-  },
-  hangoutVenue: {
-    fontSize: 14,
-    color: "#636E72",
-  },
-  hangoutHost: {
-    fontSize: 14,
-    color: "#6C5CE7",
-    fontWeight: "500",
-    marginTop: 2,
-  },
-  hangoutDetails: {
-    marginBottom: 12,
-  },
-  hangoutDescription: {
-    fontSize: 14,
-    color: "#636E72",
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  participantsSection: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  participantImages: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  participantImage: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  moreParticipants: {
-    backgroundColor: "#6C5CE7",
+  center: {
     justifyContent: "center",
     alignItems: "center",
   },
-  moreParticipantsText: {
+  loadingText: {
+    color: "#8E8EA8",
+    marginTop: 12,
+  },
+  errorText: {
+    color: "#FF2D8F",
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1A1A36",
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
+  },
+  headerCreateBtn: {
+    backgroundColor: "#FF2D8F",
+    paddingHorizontal: 16,
+    paddingVertical: 9,
+    borderRadius: 10,
+  },
+  headerCreateBtnText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  // Filter tabs
+  filterBarContainer: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
+  },
+  filterContent: {
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#161633",
+    borderWidth: 1,
+    borderColor: "#22224A",
+  },
+  activeFilterTab: {
+    backgroundColor: "transparent",
+    borderColor: "#00F0FF",
+  },
+  filterTabText: {
+    color: "#8E8EA8",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  activeFilterTabText: {
+    color: "#00F0FF",
+  },
+  // Cards List
+  listContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  hangoutCard: {
+    backgroundColor: "#13132B",
+    borderRadius: 18,
+    padding: 18,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#222244",
+  },
+  cardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  cardMeta: {
+    flex: 1,
+    paddingRight: 10,
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 6,
+  },
+  cardTime: {
+    fontSize: 13,
+    color: "#B2B2CC",
+    marginBottom: 4,
+  },
+  cardVenue: {
+    fontSize: 13,
+    color: "#B2B2CC",
+    marginBottom: 4,
+  },
+  cardHost: {
+    fontSize: 12,
+    color: "#8E8EA8",
+  },
+  statusBadge: {
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  statusText: {
+    fontSize: 9.5,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: "#1A1A36",
+    marginVertical: 14,
+  },
+  cardBottom: {
+    gap: 12,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: "#8E8EA8",
+    lineHeight: 20,
+  },
+  attendeesSection: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  attendeeAvatars: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  attendeeAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "#13132B",
+  },
+  moreAvatars: {
+    backgroundColor: "#22224A",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+    borderColor: "#13132B",
+  },
+  moreAvatarsText: {
     color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "bold",
   },
-  participantCount: {
+  slotProgressText: {
     fontSize: 12,
-    color: "#636E72",
-    fontWeight: "500",
+    color: "#00F0FF",
+    fontWeight: "700",
   },
-  joinButton: {
-    backgroundColor: "#00B894",
+  slotsFullText: {
+    color: "#FF2D8F",
+  },
+  // Buttons
+  cardBtn: {
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
+    justifyContent: "center",
+    marginTop: 14,
   },
-  joinButtonText: {
-    color: "#FFFFFF",
+  joinBtn: {
+    backgroundColor: "#00F0FF",
+  },
+  joinBtnText: {
+    color: "#0B0B1E",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
+  pendingBtn: {
+    backgroundColor: "#FFB800",
   },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#636E72",
-    marginBottom: 20,
-  },
-  emptyStateButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  emptyStateButtonText: {
-    color: "#FFFFFF",
+  pendingBtnText: {
+    color: "#0B0B1E",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  modalContainer: {
+  // Empty State
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: "#8E8EA8",
+    fontSize: 15,
+    textAlign: "center",
+  },
+  // Modal design
+  darkModal: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0A0A1C",
   },
-  modalHeader: {
+  darkModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
-  modalTitle: {
+  darkModalTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
-  closeButton: {
-    fontSize: 18,
-    color: "#636E72",
-    padding: 4,
+  closeModalText: {
+    color: "#8E8EA8",
+    fontSize: 20,
   },
-  modalContent: {
-    flex: 1,
+  modalScrollContent: {
     paddingHorizontal: 20,
+    paddingVertical: 16,
   },
-  formSection: {
+  detailSection: {
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
+  },
+  detailTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 12,
+  },
+  detailRow: {
+    marginVertical: 4,
+  },
+  detailText: {
+    fontSize: 15,
+    color: "#B2B2CC",
+  },
+  sectionHeading: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#8E8EA8",
+    marginBottom: 10,
+    letterSpacing: 0.3,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: "#B2B2CC",
+    lineHeight: 22,
+  },
+  // Participant Row
+  participantItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
+  },
+  participantAvatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+  },
+  participantInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  participantName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+  participantBio: {
+    fontSize: 12,
+    color: "#8E8EA8",
+  },
+  // Form elements
+  formGroup: {
     marginBottom: 20,
   },
   formLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#8E8EA8",
     marginBottom: 8,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 8,
+  darkTextInput: {
+    backgroundColor: "#13132B",
+    borderWidth: 1.5,
+    borderColor: "#1E1E3F",
+    borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#2D3436",
-    backgroundColor: "#FFFFFF",
+    paddingVertical: 13,
+    fontSize: 14,
+    color: "#FFFFFF",
   },
   textArea: {
     height: 80,
     textAlignVertical: "top",
   },
-  participantsList: {
+  submitBtn: {
+    marginBottom: 40,
+  },
+  // Chips
+  chipList: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  participantChip: {
+  chip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E3F2FD",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#1E1E3F",
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     marginRight: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#2E2E5F",
   },
-  participantChipImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  participantChipName: {
-    fontSize: 14,
-    color: "#1976D2",
-    fontWeight: "500",
-  },
-  removeParticipant: {
-    marginLeft: 8,
+  chipAvatar: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#FF5252",
+    marginRight: 6,
+  },
+  chipText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  removeChip: {
+    marginLeft: 6,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  removeParticipantText: {
+  removeChipText: {
     color: "#FFFFFF",
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "bold",
   },
-  inviteMoreButton: {
-    backgroundColor: "#F0F0F0",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#DDD",
+  dashedAddBtn: {
+    borderWidth: 1.5,
+    borderColor: "#FF2D8F",
     borderStyle: "dashed",
-  },
-  inviteMoreButtonText: {
-    color: "#6C5CE7",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  createHangoutButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
     borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
-    marginVertical: 24,
+    backgroundColor: "rgba(255, 45, 143, 0.03)",
   },
-  createHangoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
+  dashedAddBtnText: {
+    color: "#FF2D8F",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  detailSection: {
-    marginBottom: 20,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  detailTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 12,
-  },
-  detailLabel: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 8,
-  },
-  detailText: {
-    fontSize: 16,
-    color: "#636E72",
-    lineHeight: 22,
-  },
-  participantItem: {
+  // Invite selecting row
+  inviteRow: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 8,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
   },
-  participantItemImage: {
+  selectedInviteRow: {
+    backgroundColor: "rgba(255, 45, 143, 0.03)",
+  },
+  inviteAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 14,
+  },
+  inviteInfo: {
+    flex: 1,
+  },
+  inviteName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 3,
+  },
+  inviteBio: {
+    fontSize: 12,
+    color: "#7E7E9A",
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#222240",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkedBox: {
+    backgroundColor: "#FF2D8F",
+    borderColor: "#FF2D8F",
+  },
+  checkmarkIcon: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  // Approving
+  pendingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
+  },
+  pendingAvatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
     marginRight: 12,
   },
-  participantItemInfo: {
+  pendingInfo: {
     flex: 1,
   },
-  participantItemName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-  },
-  participantItemBio: {
+  pendingName: {
     fontSize: 14,
-    color: "#636E72",
-    marginTop: 2,
-  },
-  joinDetailButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginVertical: 24,
-  },
-  joinDetailButtonText: {
+    fontWeight: "700",
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
+    marginBottom: 2,
   },
-  connectionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  selectedConnectionItem: {
-    backgroundColor: "#E3F2FD",
-  },
-  connectionImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 16,
-  },
-  connectionInfo: {
-    flex: 1,
-  },
-  connectionName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 4,
-  },
-  connectionBio: {
-    fontSize: 14,
-    color: "#636E72",
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#DDD",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkedBox: {
-    backgroundColor: "#6C5CE7",
-    borderColor: "#6C5CE7",
-  },
-  checkmark: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  approveButton: {
-    backgroundColor: "#FFD93D",
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  approveButtonText: {
-    color: "#2D3436",
+  pendingBio: {
     fontSize: 12,
-    fontWeight: "600",
+    color: "#8E8EA8",
   },
-  pendingRequestItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  approvalButtons: {
+  actionRow: {
     flexDirection: "row",
     gap: 8,
   },
-  approveBtn: {
-    backgroundColor: "#00B894",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  actionBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
+  },
+  approveBtn: {
+    backgroundColor: "#00E676",
   },
   rejectBtn: {
-    backgroundColor: "#FF5252",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#FF2D8F",
   },
-  approveBtnText: {
+  actionBtnText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
-  },
-  rejectBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  sectionHeader: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginVertical: 16,
-    marginHorizontal: 16,
-  },
-  degreeIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
-  },
-  firstDegree: {
-    backgroundColor: "#00B894",
-  },
-  secondDegree: {
-    backgroundColor: "#FDCB6E",
-  },
-  degreeText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-  mutualConnectionsText: {
-    fontSize: 12,
-    color: "#6C5CE7",
-    marginTop: 2,
   },
 })

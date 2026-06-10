@@ -6,7 +6,13 @@ import { neo4jDriver } from '../config/database.js';
 export const getHangouts = async (req, res) => {
   try {
     const userId = req.user.id;
+    const { Op } = await import('sequelize');
     const hangouts = await Hangout.findAll({
+      where: {
+        [Op.or]: [
+          { hostId: userId },
+        ]
+      },
       include: [
         {
           model: User,
@@ -18,7 +24,6 @@ export const getHangouts = async (req, res) => {
           as: 'participants',
           attributes: ['id', 'name', 'profileImage'],
           through: { attributes: [] },
-          where: { id: userId },
         },
       ],
     });

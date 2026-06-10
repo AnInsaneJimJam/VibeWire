@@ -81,7 +81,7 @@ export const getConnectionsGraph = async (req, res) => {
     try {
         const userId = req.user.id;
 
-        // This query now aliases userId to id and provides a default for the image
+        // This query now aliases userId to id, provides a default for the image, and returns the links
         const query = `
             MATCH (me:User {userId: $userId})
             
@@ -93,7 +93,8 @@ export const getConnectionsGraph = async (req, res) => {
             RETURN 
                 me { id: me.userId, name: me.name, bio: me.bio, image: coalesce(me.profileImage, 'https://via.placeholder.com/150') } as user, 
                 collect(DISTINCT friend { id: friend.userId, name: friend.name, bio: friend.bio, image: coalesce(friend.profileImage, 'https://via.placeholder.com/150') }) as firstDegree, 
-                collect(DISTINCT friendOfFriend { id: friendOfFriend.userId, name: friendOfFriend.name, bio: friendOfFriend.bio, image: coalesce(friendOfFriend.profileImage, 'https://via.placeholder.com/150') }) as secondDegree
+                collect(DISTINCT friendOfFriend { id: friendOfFriend.userId, name: friendOfFriend.name, bio: friendOfFriend.bio, image: coalesce(friendOfFriend.profileImage, 'https://via.placeholder.com/150') }) as secondDegree,
+                collect(DISTINCT { source: friend.userId, target: friendOfFriend.userId }) as secondDegreeLinks
         `;
 
         const result = await session.run(query, { userId });
@@ -103,10 +104,17 @@ export const getConnectionsGraph = async (req, res) => {
             return res.status(404).json({ message: "User not found in graph." });
         }
         
+        const rawLinks = record.get('secondDegreeLinks') || [];
+        const links = rawLinks.filter(l => l && l.source && l.target).map(l => ({
+            source: typeof l.source === 'object' && l.source.low !== undefined ? l.source.low : l.source,
+            target: typeof l.target === 'object' && l.target.low !== undefined ? l.target.low : l.target
+        }));
+
         const graph = {
             user: record.get('user'),
             firstDegree: record.get('firstDegree').filter(Boolean), // Ensure no nulls in array
-            secondDegree: record.get('secondDegree').filter(Boolean) // Ensure no nulls in array
+            secondDegree: record.get('secondDegree').filter(Boolean), // Ensure no nulls in array
+            links: links
         };
         
         res.status(200).json(graph);

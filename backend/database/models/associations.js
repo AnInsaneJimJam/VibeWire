@@ -13,8 +13,8 @@ User.belongsToMany(Hangout, { through: HangoutParticipants, as: 'hangouts', fore
 Hangout.belongsToMany(User, { through: HangoutParticipants, as: 'participants', foreignKey: 'hangoutId' });
 
 // A Hangout can have many Invites
-Hangout.hasMany(Invite, { foreignKey: 'hangoutId' });
-Invite.belongsTo(Hangout, { foreignKey: 'hangoutId' });
+Hangout.hasMany(Invite, { foreignKey: 'hangoutId', as: 'invites' });
+Invite.belongsTo(Hangout, { foreignKey: 'hangoutId', as: 'Hangout' });
 
 // An Invite is sent by a User (sender)
 User.hasMany(Invite, { foreignKey: 'senderId', as: 'sentInvites' });
@@ -22,7 +22,7 @@ Invite.belongsTo(User, { foreignKey: 'senderId', as: 'sender' });
 
 // An Invite is sent to a User (recipient)
 User.hasMany(Invite, { foreignKey: 'recipientId', as: 'receivedInvites' });
-Invite.belongsTo(User, { foreign_key: 'recipientId', as: 'recipient' });
+Invite.belongsTo(User, { foreignKey: 'recipientId', as: 'recipient' });
 
 // An Invite can be approved by a User (approver)
 User.hasMany(Invite, { foreignKey: 'approverId', as: 'approvalRequests' });

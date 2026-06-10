@@ -1,187 +1,139 @@
-### 1st and 2nd-Degree Hangout Planning App - VibeWire
+# VibeWire - 1st & 2nd-Degree Hangout Planning App
 
-GDSC Open Project 2025
-7th June - 7th July
-
+### GDSC Open Project 2025 : 7th June - 7th Jul
 *Authors:* Anand Bansal, Aayush Bhoj
 
 ---
 
 ## About
 
-VibeWire is a social networking app designed to help you plan hangouts with your connections. Connect with people in your network through 1st and 2nd-degree connections, visualize your social graph, and organize memorable hangouts with friends and acquaintances.
+VibeWire is a modern social networking and hangout coordination application designed for college students, professionals, and close-knit groups. It leverages hybrid databases (relational + graph) to map and visualize your social circle up to 2 degrees of connection.
 
-Perfect for college students, professionals, and anyone looking to expand their social circle and plan engaging activities with their network.
-
----
-
-##  Features
-
-###  *Secure Authentication*
-- Phone number verification with OTP
-- Secure user registration and login
-- Password management and security
-
-###  *Smart Connection Management*
-- Select and manage your 1st-degree connections
-- Discover 2nd-degree connections through mutual friends
-- View detailed profiles with education and background info
-- Connection recommendations based on mutual networks
-
-###  *Interactive Network Visualization*
-- Visual graph representation of your social network
-- See how you're connected to different people
-- Explore connection paths and mutual friends
-- Interactive map of your social circle
-
-###  *Hangout Planning*
-- Plan and organize hangouts with your connections
-- Coordinate activities with multiple people
-- Manage your social calendar
-- Track upcoming and past events
-
-###  *Rich User Profiles*
-- Customizable profile with bio and photo
-- Education details (course, year, hostel/bhawan)
-- Connection statistics and network insights
-- Privacy controls and settings
+Discover friends-of-friends (2nd-degree connections), see your shared paths, explore mutual connections through an interactive 2D social graph, and organize hangouts with real-time invite tracking.
 
 ---
 
-##  Tech Stack
+## Visual Social Graph
 
-- *Frontend:* React Native with Expo
-- *Language:* TypeScript
-- *Navigation:* Expo Router
-- *UI Components:* Custom React Native components
-- *Image Handling:* Expo ImagePicker
-- *Authentication:* OTP-based phone verification
-- *State Management:* React Hooks (useState, useEffect)
+The core experience of VibeWire centers around a glowing, interactive neon social graph. It is fully scrollable, center-aligned on the user node, and visually displays connection paths dynamically:
 
----
+![VibeWire Social Graph Network Screen](image.png)
 
-##  Getting Started
-
-### Prerequisites
-- Node.js (v16 or higher)
-- npm or yarn
-- Expo CLI
-- iOS Simulator or Android Emulator (or physical device)
-
-### Installation
-
-1. *Clone the repository*
-   \\\`bash
-   git clone https://github.com/yourusername/vibewire.git
-   cd vibewire
-   \\\`
-
-2. *Install dependencies*
-   Go to frontend/VibeWire and then
-   \\\`bash
-   npm install
-   # or
-   yarn install
-   \\\`
-
-4. *Start the development server*
-   \\\`bash
-   npx expo start
-   \\\`
-
-5. *Run on device/simulator*
-   - Press i for iOS simulator
-   - Press a for Android emulator
-   - Scan QR code with Expo Go app on your phone
+*Key Highlights:*
+- **User Node (Center):** Glowing cyan backdrop showing your own profile.
+- **1st-Degree Friends (Inner Ring):** Connected by solid teal lines with a hot pink border indicating close connections.
+- **2nd-Degree Friends (Outer Fan-Out):** Grouped around their connecting mutual friend, linked by dashed lines with gold borders.
 
 ---
 
-##  App Flow
+## Features
 
-### 1. *Authentication Flow*
-\\\`
-Phone Number Input → OTP Verification → Account Creation
-\\\`
+### 🔐 Secure Authentication & Onboarding
+- Phone number verification with OTP (supports development mock verification).
+- High-fidelity dark mode forms for sign-up and login.
+- Smart connection selection on first login (selects initial seed network of up to 8 connections).
 
-### 2. *Onboarding Flow*
-\\\`
-OTP Verification → Connection Selection → Profile Setup → Main App
-\\\`
+### 🕸️ Interactive Social Graph
+- 2D scrolling/panning viewport centered around the active user.
+- Interactive connection profile preview modals when clicking nodes.
+- Distinct styling differentiating direct (1st-degree) and indirect (2nd-degree) connections.
 
-### 3. *Main App Navigation*
-\\\`
-Profile Tab ← → Map/Graph Tab ← → Hangouts Tab
-\\\`
+### 📅 Hangout & Event Planning
+- Create new hangouts by choosing details like title, date, time, venue, and participant limit.
+- Select from 1st and 2nd-degree connections to add to hangouts.
+- Direct invite tracking: connections receive invites in their *Inbox* to accept or decline.
 
----
-
-##  Key Screens
-
-### *OTP Verification* (otp-verify.tsx)
-- 6-digit OTP input with auto-focus
-- Resend functionality with countdown timer
-- Mock OTP generation for development
-- Secure verification process
-
-### *Connection Selection* (connections-select.tsx)
-- Browse and select up to 8 connections
-- Filter by 1st-degree connections
-- View detailed connection profiles
-- Smart selection with connection limits
-
-### *Profile Management* (profile.tsx)
-- Edit personal information and bio
-- View connection statistics
-- Manage selected connections
-- Password change functionality
-- Interactive profile customization
-
-### *Network Visualization* (Graph.tsx)
-- Visual representation of social network
-- Interactive connection mapping
-- Degree-based connection filtering
-
-### *Hangout Planning* (hangouts.tsx)
-- Plan and organize social events
-- Coordinate with multiple connections
-- Manage hangout calendar
+### 👤 Profile Customization
+- View stats (e.g., connection counts, bhawan details).
+- Edit name, bio, and upload profile pictures.
+- Shared auth-context state propagation to ensure the profile tab and graph center update synchronously.
 
 ---
 
-##  Project Structure
+## Tech Stack
 
+### Frontend
+- **Framework:** React Native with Expo (TypeScript)
+- **Routing:** Expo Router
+- **Graphics:** React Native SVG (for canvas graph layout rendering)
+- **Storage:** React Native AsyncStorage for session persistence
+
+### Backend
+- **Framework:** Node.js & Express (RESTful APIs)
+- **Relational DBMS:** PostgreSQL / MySQL via Sequelize ORM (handles user credentials, sessions, hangouts, and invite metadata)
+- **Graph DBMS:** Neo4j (handles connection paths, high-speed 1st/2nd-degree traversal, and graph-nodes discovery)
+
+---
+
+## Project Structure
+
+```
 VibeWire/
-├── app/
-│   ├── (tabs)/                 # Tab-based navigation screens
-│   ├── +not-found.tsx         # 404/Not found screen
-│   ├── Graph.tsx              # Network visualization screen
-│   ├── _layout.tsx            # Root layout configuration
-│   ├── connections-select.tsx  # Connection selection screen
-│   ├── hangouts.tsx           # Hangout planning screen
-│   ├── login.tsx              # User login screen
-│   ├── otp-verify.tsx         # OTP verification screen
-│   ├── profile.tsx            # User profile screen
-│   ├── signup.tsx             # User registration screen
-│   └── welcome.tsx            # Welcome/onboarding screen
-├── assets/                    # Images and static assets
-├── components/                # Reusable components
+├── backend/                    # Node.js + Express backend server
+│   ├── database/
+│   │   ├── config/             # DB and Neo4j connection configs
+│   │   ├── controllers/        # Route controller logic (auth, connections, hangouts, etc.)
+│   │   ├── models/             # Sequelize/SQL database models
+│   │   └── seed.js             # Database seeding script
+│   ├── middleware/             # Route protections & JWT auth
+│   └── routes/                 # Express REST endpoint routes
+├── frontend/VibeWire/          # React Native + Expo App
+│   ├── app/
+│   │   ├── (tabs)/             # Main Tab Bar Screens
+│   │   │   ├── index.tsx       # 2D Interactive Social Graph
+│   │   │   ├── hangouts.tsx    # List and Create Hangouts
+│   │   │   ├── invites.tsx     # Hangouts Invites Inbox
+│   │   │   └── profile.tsx     # Profile Settings & Connections List
+│   │   │   └── _layout.tsx     # Tab configuration & styling
+│   │   ├── _layout.tsx         # Root stack layout (Auth Context wrapper)
+│   │   ├── welcome.tsx         # Welcome Landing Screen
+│   │   ├── login.tsx           # Account Login Screen
+│   │   ├── signup.tsx          # Account Sign-Up Screen
+│   │   ├── otp-verify.tsx      # Phone OTP Verification Screen
+│   │   └── connections-select.tsx # Onboarding Connection Seeding
+│   ├── components/             # Reusable UI & IconSymbol components
+│   └── src/
+│       ├── context/            # AuthContext (state handling)
+│       └── services/           # Axios API Client Wrapper
+└── assets/                     # Screenshots and graphics
+```
 
 ---
 
-## Design Features
+## Getting Started
 
-- *UI/UX* with clean, intuitive design
-- *Responsive layouts* that work on all screen sizes
-- *Smooth animations* and transitions
-- *Consistent color scheme* with purple accent (#6C5CE7)
-- *Accessibility support* with proper labels and navigation
+### Backend Setup
+1. Navigate to the `backend` folder:
+   ```bash
+   cd backend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Create a `.env` file based on `.env.example` and fill in your PostgreSQL and Neo4j connection credentials.
+4. Run the seed script to populate mock users and friendships:
+   ```bash
+   npm run seed
+   ```
+5. Start the backend development server:
+   ```bash
+   npm run dev
+   ```
 
----
-
-##  Development Features
-
-- *TypeScript* for type safety and better development experience
-- *Modular architecture* with reusable components
-- *Mock data* for development and testing
-- *Console logging* for debugging and development
-- *Error handling* with user-friendly alerts
+### Frontend Setup
+1. Navigate to the `frontend/VibeWire` directory:
+   ```bash
+   cd frontend/VibeWire
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Expo CLI development server:
+   ```bash
+   npx expo start -c
+   ```
+4. Run the app:
+   - Scan the QR code using the **Expo Go** app on iOS or Android.
+   - Or press `a` for Android emulator or `i` for iOS simulator.

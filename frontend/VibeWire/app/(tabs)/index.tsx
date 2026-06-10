@@ -1,7 +1,8 @@
 import { Dimensions, View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, Modal, SafeAreaView, Alert, TextInput, ActivityIndicator } from "react-native";
 import { useState, useRef, useEffect } from "react";
-import { Svg, Circle, Line, G } from "react-native-svg";
+import { Svg, Circle, Line, G, Image as SvgImage, Rect, Text as SvgText, ClipPath, Defs, Pattern } from "react-native-svg";
 import { connectionAPI, hangoutAPI } from "../../src/services/api";
+import { useAuth } from "../../src/context/AuthContext";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Connection {
@@ -47,18 +48,18 @@ interface NodePosition {
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 // Global state to remember scroll position
-const savedScrollPosition = { x: 0, y: 0, zoom: 1.3 };
+const savedScrollPosition = { x: 0, y: 0, zoom: 1.2 };
 
 export default function GraphScreen({
   existingHangouts = [],
   onHangoutCreated,
   onConnectionAddedToHangout,
 }: GraphProps) {
-  const [userDetails, setUserDetails] = useState(null);
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [connections, setConnections] = useState<Connection[]>([]);
-  const [selectedConnection, setSelectedConnection] =
-    useState<Connection | null>(null);
+  const [links, setLinks] = useState<any[]>([]);
+  const [selectedConnection, setSelectedConnection] = useState<Connection | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [showHangoutOptions, setShowHangoutOptions] = useState(false);
   const [showNewHangoutForm, setShowNewHangoutForm] = useState(false);
@@ -66,47 +67,51 @@ export default function GraphScreen({
   const [showInviteMore, setShowInviteMore] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const storedUser = await AsyncStorage.getItem('userData');
-        if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          setUserDetails({
-            name: parsedUser.name,
-            image: parsedUser.profileImage || 'https://via.placeholder.com/150', // Provide a fallback image
-            userNumber: parsedUser.phoneNumber,
-          });
-        }
-      } catch (error) {
-        console.error("Failed to load user data from storage", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const resolveImageUrl = (imagePath: string | null | undefined) => {
+    if (!imagePath) {
+      return 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=200';
+    }
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+    return `http://192.168.29.208:3000/${imagePath}`;
+  };
 
+  useEffect(() => {
     const fetchGraphData = async () => {
       try {
         const graphData = await connectionAPI.getGraph();
-        const firstDegree = graphData.firstDegree.map((c: any) => ({
+        const firstDegree = (graphData.firstDegree || []).map((c: any) => ({
           ...c,
           degree: 1,
         }));
-        const secondDegree = graphData.secondDegree.map((c: any) => ({
+        const secondDegree = (graphData.secondDegree || []).map((c: any) => ({
           ...c,
           degree: 2,
         }));
-        setConnections([...firstDegree, ...secondDegree]);
+        
+        // Deduplicate connections by ID (preferring 1st degree connections)
+        const uniqueGraphMap = new Map();
+        secondDegree.forEach((c: any) => {
+          if (c && c.id) uniqueGraphMap.set(c.id, c);
+        });
+        firstDegree.forEach((c: any) => {
+          if (c && c.id) uniqueGraphMap.set(c.id, c);
+        });
+        
+        setConnections(Array.from(uniqueGraphMap.values()));
+        setLinks(graphData.links || []);
       } catch (error) {
         console.error("Error fetching graph data:", error);
         Alert.alert(
           "Error",
           "Failed to fetch connection graph. Please try again."
         );
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchUserData();
     fetchGraphData();
   }, []);
 
@@ -116,84 +121,122 @@ export default function GraphScreen({
   const [hangoutTime, setHangoutTime] = useState("");
   const [hangoutVenue, setHangoutVenue] = useState("");
   const [maxParticipants, setMaxParticipants] = useState("4");
-  const [selectedParticipants, setSelectedParticipants] = useState<
-    Connection[]
-  >([]);
-  const [currentHangout, setCurrentHangout] = useState<Hangout | null>(null);
+  const [selectedParticipants, setSelectedParticipants] = useState<Connection[]>([]);
 
   const scrollViewRef = useRef<ScrollView>(null);
+  const horizontalScrollViewRef = useRef<ScrollView>(null);
 
   // Separate connections by degree
   const firstDegreeConnections = connections.filter((c) => c.degree === 1);
   const secondDegreeConnections = connections.filter((c) => c.degree === 2);
 
-  // Graph dimensions - make it larger than screen for scrolling
-  const graphWidth = Math.max(screenWidth * 2, 800);
-  const graphHeight = Math.max(screenHeight * 1.5, 600);
+  // Graph dimensions
+  const graphWidth = Math.max(screenWidth * 2.2, 1000);
+  const graphHeight = Math.max(screenHeight * 1.6, 900);
   const centerX = graphWidth / 2;
   const centerY = graphHeight / 2;
 
-  // Calculate positions for nodes
+  // Calculate positions for nodes dynamically based on friendships
   const calculateNodePositions = (): NodePosition[] => {
     const positions: NodePosition[] = [];
+    const coordsMap: { [id: string]: { x: number; y: number } } = {};
 
-    // User at center
+    // 1. User at center
     positions.push({
       x: centerX,
       y: centerY,
       isUser: true,
     });
+    coordsMap['user'] = { x: centerX, y: centerY };
 
-    // First degree connections in a circle around user
-    const firstDegreeRadius = 150;
-    const firstDegreeAngleStep =
-      (2 * Math.PI) / (firstDegreeConnections.length || 1);
+    // 2. First degree connections in a circle around user
+    const firstDegreeRadius = 180;
+    const firstDegreeAngleStep = (2 * Math.PI) / (firstDegreeConnections.length || 1);
 
     firstDegreeConnections.forEach((connection, index) => {
       const angle = index * firstDegreeAngleStep;
+      const x = centerX + Math.cos(angle) * firstDegreeRadius;
+      const y = centerY + Math.sin(angle) * firstDegreeRadius;
       positions.push({
-        x: centerX + Math.cos(angle) * firstDegreeRadius,
-        y: centerY + Math.sin(angle) * firstDegreeRadius,
+        x,
+        y,
         connection,
       });
+      coordsMap[String(connection.id)] = { x, y };
     });
 
-    // Second degree connections - positioned around their respective first degree connections
+    // 3. Second degree connections grouped around their first-degree links
+    // Map second-degree friend ID -> list of first-degree friend IDs connecting them
+    const fofConnectionsMap: { [fofId: string]: string[] } = {};
+    links.forEach(link => {
+      const src = String(link.source);
+      const tgt = String(link.target);
+      const isSrcFirst = firstDegreeConnections.some(c => String(c.id) === src);
+      const isTgtSecond = secondDegreeConnections.some(c => String(c.id) === tgt);
+      const isTgtFirst = firstDegreeConnections.some(c => String(c.id) === tgt);
+      const isSrcSecond = secondDegreeConnections.some(c => String(c.id) === src);
+
+      if (isSrcFirst && isTgtSecond) {
+        if (!fofConnectionsMap[tgt]) fofConnectionsMap[tgt] = [];
+        fofConnectionsMap[tgt].push(src);
+      } else if (isSrcSecond && isTgtFirst) {
+        if (!fofConnectionsMap[src]) fofConnectionsMap[src] = [];
+        fofConnectionsMap[src].push(tgt);
+      }
+    });
+
+    // Track placed count around each first-degree node
+    const placedCountMap: { [friendId: string]: number } = {};
+    firstDegreeConnections.forEach(c => {
+      placedCountMap[String(c.id)] = 0;
+    });
+
     const secondDegreeRadius = 120;
-    let secondDegreeIndex = 0;
+    
+    secondDegreeConnections.forEach((connection, index) => {
+      const connId = String(connection.id);
+      const parentIds = fofConnectionsMap[connId] || [];
+      
+      let parentId = parentIds[0];
+      // Fallback parent if no connection links exist
+      if (!parentId && firstDegreeConnections.length > 0) {
+        parentId = String(firstDegreeConnections[index % firstDegreeConnections.length].id);
+      }
 
-    firstDegreeConnections.forEach((firstDegreeConnection, firstIndex) => {
-      // Get second degree connections that are connected through this first degree connection
-      const relatedSecondDegree = secondDegreeConnections.slice(
-        secondDegreeIndex,
-        secondDegreeIndex +
-          Math.ceil(
-            secondDegreeConnections.length /
-              (firstDegreeConnections.length || 1)
-          )
-      );
+      if (parentId && coordsMap[parentId]) {
+        const parentCoords = coordsMap[parentId];
+        const parentIndex = firstDegreeConnections.findIndex(c => String(c.id) === parentId);
+        const parentAngle = parentIndex * firstDegreeAngleStep;
+        
+        const count = placedCountMap[parentId] || 0;
+        placedCountMap[parentId] = count + 1;
 
-      const firstDegreeAngle = firstIndex * firstDegreeAngleStep;
-      const firstDegreeX =
-        centerX + Math.cos(firstDegreeAngle) * firstDegreeRadius;
-      const firstDegreeY =
-        centerY + Math.sin(firstDegreeAngle) * firstDegreeRadius;
+        // Fan out outwards away from center
+        const fanAngle = 0.55; 
+        const subAngle = (count - 1) * fanAngle; 
+        const finalAngle = parentAngle + subAngle;
 
-      relatedSecondDegree.forEach((connection, relatedIndex) => {
-        const subAngle =
-          relatedIndex * (Math.PI / 3) - Math.PI / 6; // Spread around first degree node
+        const x = parentCoords.x + Math.cos(finalAngle) * secondDegreeRadius;
+        const y = parentCoords.y + Math.sin(finalAngle) * secondDegreeRadius;
+
         positions.push({
-          x:
-            firstDegreeX +
-            Math.cos(firstDegreeAngle + subAngle) * secondDegreeRadius,
-          y:
-            firstDegreeY +
-            Math.sin(firstDegreeAngle + subAngle) * secondDegreeRadius,
+          x,
+          y,
           connection,
         });
-      });
-
-      secondDegreeIndex += relatedSecondDegree.length;
+        coordsMap[connId] = { x, y };
+      } else {
+        // Outer ring placement fallback
+        const angle = index * ((2 * Math.PI) / (secondDegreeConnections.length || 1));
+        const x = centerX + Math.cos(angle) * (firstDegreeRadius + secondDegreeRadius);
+        const y = centerY + Math.sin(angle) * (firstDegreeRadius + secondDegreeRadius);
+        positions.push({
+          x,
+          y,
+          connection,
+        });
+        coordsMap[connId] = { x, y };
+      }
     });
 
     return positions;
@@ -203,43 +246,44 @@ export default function GraphScreen({
 
   // Initialize view position and zoom
   useEffect(() => {
-    if (!isInitialized && scrollViewRef.current) {
+    if (!isInitialized && scrollViewRef.current && horizontalScrollViewRef.current) {
       const timer = setTimeout(() => {
-        // Calculate position to center the user node
         const scrollX = Math.max(0, centerX - screenWidth / 2);
         const scrollY = Math.max(0, centerY - screenHeight / 2);
 
-        // If we have saved position, use it; otherwise center on user
-        const targetX =
-          savedScrollPosition.x !== 0 ? savedScrollPosition.x : scrollX;
-        const targetY =
-          savedScrollPosition.y !== 0 ? savedScrollPosition.y : scrollY;
+        const targetX = savedScrollPosition.x !== 0 ? savedScrollPosition.x : scrollX;
+        const targetY = savedScrollPosition.y !== 0 ? savedScrollPosition.y : scrollY;
         const targetZoom = savedScrollPosition.zoom;
 
-        // Set zoom first
-        scrollViewRef.current?.setNativeProps({
+        horizontalScrollViewRef.current?.setNativeProps({
           zoomScale: targetZoom,
         });
 
-        // Then scroll to position
         scrollViewRef.current?.scrollTo({
-          x: targetX,
           y: targetY,
           animated: false,
         });
 
+        horizontalScrollViewRef.current?.scrollTo({
+          x: targetX,
+          animated: false,
+        });
+
         setIsInitialized(true);
-      }, 100);
+      }, 150);
 
       return () => clearTimeout(timer);
     }
   }, [isInitialized, centerX, centerY]);
 
-  // Save scroll position when component unmounts or user scrolls
-  const handleScroll = (event: any) => {
+  const handleVerticalScroll = (event: any) => {
+    const { contentOffset } = event.nativeEvent;
+    savedScrollPosition.y = contentOffset.y;
+  };
+
+  const handleHorizontalScroll = (event: any) => {
     const { contentOffset, zoomScale } = event.nativeEvent;
     savedScrollPosition.x = contentOffset.x;
-    savedScrollPosition.y = contentOffset.y;
     savedScrollPosition.zoom = zoomScale || savedScrollPosition.zoom;
   };
 
@@ -290,9 +334,9 @@ export default function GraphScreen({
       date: hangoutDate,
       time: hangoutTime,
       venue: hangoutVenue,
-      description: "", // Description is not in this form, send empty
+      description: "",
       maxParticipants: parseInt(maxParticipants, 10),
-      participantIds: selectedParticipants.map((p) => p.id),
+      participantIds: selectedParticipants.map((p) => parseInt(p.id, 10)),
     };
 
     try {
@@ -300,6 +344,9 @@ export default function GraphScreen({
       Alert.alert("Success!", `Hangout "${hangoutTitle}" has been created!`);
       setShowNewHangoutForm(false);
       resetForms();
+      if (onHangoutCreated) {
+        onHangoutCreated(hangoutData as any);
+      }
     } catch (error) {
       console.error("Error creating hangout:", error);
       Alert.alert("Error", "Failed to create hangout. Please try again.");
@@ -314,7 +361,6 @@ export default function GraphScreen({
     setHangoutVenue("");
     setMaxParticipants("4");
     setSelectedParticipants([]);
-    setCurrentHangout(null);
   };
 
   const toggleParticipant = (connection: Connection) => {
@@ -328,64 +374,72 @@ export default function GraphScreen({
     });
   };
 
-  const navigateToProfileScreen = () => {
-    console.log("Navigate to profile screen");
-  };
-
   const renderConnections = () => {
     const userPosition = nodePositions[0];
-    const lines = [];
+    const lines: React.ReactElement[] = [];
 
-    // Draw lines from user to first degree connections
+
+    // 1. Draw solid glowing cyan lines from user to 1st degree
     nodePositions.slice(1).forEach((position, index) => {
       if (position.connection?.degree === 1) {
         lines.push(
-          <Line
-            key={`user-to-first-${index}`}
-            x1={userPosition.x}
-            y1={userPosition.y}
-            x2={position.x}
-            y2={position.y}
-            stroke="#00D4FF"
-            strokeWidth="2"
-            opacity={0.6}
-          />
+          <G key={`user-to-first-${index}`}>
+            <Line
+              x1={userPosition.x}
+              y1={userPosition.y}
+              x2={position.x}
+              y2={position.y}
+              stroke="#00F0FF"
+              strokeWidth="6"
+              opacity={0.12}
+            />
+            <Line
+              x1={userPosition.x}
+              y1={userPosition.y}
+              x2={position.x}
+              y2={position.y}
+              stroke="#00F0FF"
+              strokeWidth="2.5"
+              opacity={0.65}
+            />
+          </G>
         );
       }
     });
 
-    // Draw lines from first degree to second degree connections
-    const firstDegreePositions = nodePositions.filter(
-      (p) => p.connection?.degree === 1
-    );
-    const secondDegreePositions = nodePositions.filter(
-      (p) => p.connection?.degree === 2
-    );
-
-    const secondDegreePerFirst = firstDegreePositions.length > 0
-      ? Math.ceil(secondDegreePositions.length / firstDegreePositions.length)
-      : 0;
-
-    firstDegreePositions.forEach((firstPos, firstIndex) => {
-      const relatedSecondDegree = secondDegreePerFirst > 0 ? secondDegreePositions.slice(
-        firstIndex * secondDegreePerFirst,
-        (firstIndex + 1) * secondDegreePerFirst
-      ) : [];
-
-      relatedSecondDegree.forEach((secondPos, secondIndex) => {
+    // 2. Draw dashed glowing pink lines between 1st degree and 2nd degree
+    links.forEach((link, idx) => {
+      const srcId = String(link.source);
+      const tgtId = String(link.target);
+      
+      const srcPos = nodePositions.find(p => p.connection && String(p.connection.id) === srcId);
+      const tgtPos = nodePositions.find(p => p.connection && String(p.connection.id) === tgtId);
+      
+      if (srcPos && tgtPos) {
         lines.push(
-          <Line
-            key={`first-to-second-${firstIndex}-${secondIndex}`}
-            x1={firstPos.x}
-            y1={firstPos.y}
-            x2={secondPos.x}
-            y2={secondPos.y}
-            stroke="#FF6B9D"
-            strokeWidth="1.5"
-            opacity={0.4}
-          />
+          <G key={`link-${srcId}-${tgtId}-${idx}`}>
+            <Line
+              x1={srcPos.x}
+              y1={srcPos.y}
+              x2={tgtPos.x}
+              y2={tgtPos.y}
+              stroke="#FF2D8F"
+              strokeWidth="4.5"
+              opacity={0.1}
+            />
+            <Line
+              x1={srcPos.x}
+              y1={srcPos.y}
+              x2={tgtPos.x}
+              y2={tgtPos.y}
+              stroke="#FF2D8F"
+              strokeWidth="1.5"
+              strokeDasharray="4, 3"
+              opacity={0.55}
+            />
+          </G>
         );
-      });
+      }
     });
 
     return lines;
@@ -395,24 +449,108 @@ export default function GraphScreen({
     return nodePositions.map((position, index) => {
       const isUser = position.isUser;
       const connection = position.connection;
-      const nodeSize = isUser ? 35 : 30;
-      const key = isUser ? 'user-node' : `connection-node-${connection?.id || index}`;
+      const r = isUser ? 36 : 30; // Radius
+      const nodeKey = isUser ? 'user' : `conn-${connection?.id || index}`;
+      
+      const strokeColor = isUser
+        ? "#00F0FF" // Cyan for user
+        : connection?.degree === 1
+        ? "#FF2D8F" // Neon Pink for 1st degree
+        : "#FFB800"; // Gold for 2nd degree
+        
+      const name = isUser
+        ? (user?.name || "You").split(" ")[0]
+        : connection?.name.split(" ")[0] || "Friend";
+
+      const imageUrl = isUser
+        ? resolveImageUrl(user?.profileImage)
+        : resolveImageUrl(connection?.image);
 
       return (
-        <G key={key}>
+        <G key={nodeKey}>
+          <Defs>
+            <ClipPath id={`clip-${nodeKey}`}>
+              <Circle cx={position.x} cy={position.y} r={r - 3} />
+            </ClipPath>
+          </Defs>
+
+          {/* Glowing outer backdrop ring */}
           <Circle
             cx={position.x}
             cy={position.y}
-            r={nodeSize}
-            fill={
-              isUser
-                ? "#00D4FF"
-                : connection?.degree === 1
-                ? "#FF6B9D"
-                : "#FFD93D"
-            }
-            stroke="#FFFFFF"
+            r={r + 6}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth="8"
+            opacity={0.15}
+          />
+
+          {/* Medium ring (inner glow) */}
+          <Circle
+            cx={position.x}
+            cy={position.y}
+            r={r + 2.5}
+            fill="none"
+            stroke={strokeColor}
             strokeWidth="3"
+            opacity={0.4}
+          />
+
+          {/* Main solid border ring */}
+          <Circle
+            cx={position.x}
+            cy={position.y}
+            r={r}
+            fill="#121225"
+            stroke={strokeColor}
+            strokeWidth="2"
+          />
+
+          {/* Clipped image */}
+          <SvgImage
+            x={position.x - (r - 3)}
+            y={position.y - (r - 3)}
+            width={(r - 3) * 2}
+            height={(r - 3) * 2}
+            href={{ uri: imageUrl }}
+            clipPath={`url(#clip-${nodeKey})`}
+          />
+
+          {/* Name Label Container: Semi-transparent pill */}
+          <Rect
+            x={position.x - 45}
+            y={position.y + r + 7}
+            width="90"
+            height="18"
+            rx="9"
+            fill="rgba(15, 15, 35, 0.85)"
+            stroke="rgba(255, 255, 255, 0.12)"
+            strokeWidth="1"
+          />
+
+          {/* Name text */}
+          <SvgText
+            x={position.x}
+            y={position.y + r + 19}
+            fill="#E2E8F0"
+            fontSize="9.5"
+            fontWeight="700"
+            textAnchor="middle"
+          >
+            {name}
+          </SvgText>
+
+          {/* Invisible interactive zone for click detection */}
+          <Circle
+            cx={position.x}
+            cy={position.y}
+            r={r + 15}
+            fill="transparent"
+            onPress={() => {
+              if (!isUser && connection) {
+                handleConnectionPress(connection);
+              }
+            }}
           />
         </G>
       );
@@ -421,101 +559,62 @@ export default function GraphScreen({
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#6C5CE7" />
-        <Text>Loading your network...</Text>
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#00F0FF" />
+        <Text style={styles.loadingText}>Synthesizing Social Graph...</Text>
       </View>
     );
   }
 
-  if (!userDetails) {
+  if (!user) {
     return (
-      <View style={styles.container}>
-        <Text>Could not load user details. Please try logging in again.</Text>
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.errorText}>Profile not recognized. Please sign in again.</Text>
       </View>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: "#0F0F23" }]}>
-      {/* Scrollable Graph */}
+    <SafeAreaView style={styles.container}>
+      {/* Scrollable Graph Container */}
       <ScrollView
         ref={scrollViewRef}
         style={styles.graphContainer}
-        horizontal={true}
-        showsHorizontalScrollIndicator={false}
+        horizontal={false}
         showsVerticalScrollIndicator={false}
-        minimumZoomScale={0.5}
-        maximumZoomScale={3}
-        bouncesZoom={true}
-        onScroll={handleScroll}
+        onScroll={handleVerticalScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{
-          width: graphWidth,
           height: graphHeight,
         }}
       >
-        {/* SVG Graph */}
-        <Svg width={graphWidth} height={graphHeight} style={styles.svg}>
-          {renderConnections()}
-          {renderNodes()}
-        </Svg>
-
-        {/* Overlay nodes with profile images and names */}
-        {nodePositions.map((position, index) => {
-          const isUser = position.isUser;
-          const connection = position.connection;
-          const nodeSize = isUser ? 70 : 60;
-          const key = isUser ? 'user-overlay' : `connection-overlay-${connection?.id || index}`;
-
-          return (
-            <TouchableOpacity
-              key={key}
-              style={[
-                styles.nodeOverlay,
-                {
-                  left: position.x - nodeSize / 2,
-                  top: position.y - nodeSize / 2,
-                  width: nodeSize,
-                  height: nodeSize,
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 4,
-                  elevation: 5,
-                },
-              ]}
-              onPress={() => {
-                if (!isUser && connection) {
-                  handleConnectionPress(connection);
-                }
-              }}
-              disabled={isUser}
-            >
-              <Image
-                source={{
-                  uri: isUser ? userDetails.image : connection?.image,
-                }}
-                style={[
-                  styles.nodeImage,
-                  {
-                    width: nodeSize - 10,
-                    height: nodeSize - 10,
-                    borderRadius: (nodeSize - 10) / 2,
-                  },
-                ]}
-              />
-              <Text
-                style={[styles.nodeName, { fontSize: isUser ? 12 : 10 }]}
-              >
-                {isUser
-                  ? userDetails.name.split(" ")[0]
-                  : connection?.name.split(" ")[0]}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        <ScrollView
+          ref={horizontalScrollViewRef}
+          horizontal={true}
+          showsHorizontalScrollIndicator={false}
+          onScroll={handleHorizontalScroll}
+          scrollEventThrottle={16}
+          minimumZoomScale={0.5}
+          maximumZoomScale={2.5}
+          bouncesZoom={true}
+          contentContainerStyle={{
+            width: graphWidth,
+            height: graphHeight,
+          }}
+        >
+          <Svg width={graphWidth} height={graphHeight} style={styles.svg}>
+            <Defs>
+              <Pattern id="dot-grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <Circle cx="20" cy="20" r="1.2" fill="rgba(0, 240, 255, 0.07)" />
+              </Pattern>
+            </Defs>
+            <Rect width={graphWidth} height={graphHeight} fill="url(#dot-grid)" />
+            {renderConnections()}
+            {renderNodes()}
+          </Svg>
+        </ScrollView>
       </ScrollView>
+
 
       {/* Connection Detail Modal */}
       <Modal
@@ -524,183 +623,148 @@ export default function GraphScreen({
         presentationStyle="pageSheet"
         onRequestClose={() => setShowDetail(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Connection Details</Text>
-            <TouchableOpacity onPress={() => setShowDetail(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+        <View style={styles.darkModalContainer}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Vibe Profile</Text>
+            <TouchableOpacity style={styles.darkCloseButton} onPress={() => setShowDetail(false)}>
+              <Text style={styles.darkCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
 
           {selectedConnection && (
-            <ScrollView
-              style={styles.modalContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.profileSection}>
-                <Image
-                  source={{ uri: selectedConnection.image }}
-                  style={styles.modalProfileImage}
-                />
-                <Text style={styles.modalName}>
-                  {selectedConnection.name}
-                </Text>
-                <Text style={styles.modalBio}>{selectedConnection.bio}</Text>
+            <ScrollView style={styles.darkModalContent} showsVerticalScrollIndicator={false}>
+              <View style={styles.darkProfileSection}>
+                <View style={styles.avatarGlowContainer}>
+                  <Image source={{ uri: selectedConnection.image }} style={styles.darkProfileImage} />
+                  <View style={[styles.degreeBadge, { backgroundColor: selectedConnection.degree === 1 ? '#FF2D8F' : '#FFB800' }]}>
+                    <Text style={styles.degreeText}>{selectedConnection.degree}st</Text>
+                  </View>
+                </View>
+                <Text style={styles.darkName}>{selectedConnection.name}</Text>
+                <Text style={styles.darkBio}>{selectedConnection.bio || "No bio yet."}</Text>
 
-                {selectedConnection.degree === 2 && (
-                  <View style={styles.mutualBadge}>
-                    <Text style={styles.mutualText}>
-                      {selectedConnection.mutualConnections} mutual
-                      connections
+                {selectedConnection.degree === 2 && selectedConnection.mutualConnections && (
+                  <View style={styles.darkMutualBadge}>
+                    <Text style={styles.darkMutualText}>
+                      ⚡ {selectedConnection.mutualConnections} Mutual Connections
                     </Text>
                   </View>
                 )}
               </View>
 
-              {(selectedConnection.course || selectedConnection.bhawan) && (
-                <View style={styles.educationSection}>
-                  <Text style={styles.sectionTitle}>📚 Education</Text>
-                  {selectedConnection.course && (
-                    <Text style={styles.educationText}>
-                      {selectedConnection.course}
-                    </Text>
-                  )}
-                  {selectedConnection.year && (
-                    <Text style={styles.educationText}>
-                      {selectedConnection.year}
-                    </Text>
-                  )}
-                  {selectedConnection.bhawan && (
-                    <Text style={styles.educationText}>
-                      🏠 {selectedConnection.bhawan}
-                    </Text>
-                  )}
+              <View style={styles.darkInfoSection}>
+                <Text style={styles.darkSectionTitle}>📚 Education Details</Text>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Course:</Text>
+                  <Text style={styles.infoValue}>{selectedConnection.course || "B.Tech"}</Text>
                 </View>
-              )}
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Year:</Text>
+                  <Text style={styles.infoValue}>{selectedConnection.year || "3rd Year"}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Bhawan:</Text>
+                  <Text style={styles.infoValue}>🏠 {selectedConnection.bhawan || "Rajendra Bhawan"}</Text>
+                </View>
+              </View>
 
-              <View style={styles.actionSection}>
+              <View style={styles.darkActionSection}>
                 <TouchableOpacity
-                  style={styles.messageButton}
+                  style={[styles.darkButton, styles.primaryOutline]}
                   onPress={() => {
-                    Alert.alert(
-                      "Message",
-                      `Opening chat with ${selectedConnection.name}`
-                    );
+                    Alert.alert("Message", `Direct Message to ${selectedConnection.name} initialized.`);
                     setShowDetail(false);
                   }}
                 >
-                  <Text style={styles.messageButtonText}>💬 Send Message</Text>
+                  <Text style={styles.primaryOutlineText}>💬 Send Message</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.hangoutButton}
+                  style={[styles.darkButton, styles.neonSolid]}
                   onPress={() => handlePlanHangout(selectedConnection)}
                 >
-                  <Text style={styles.hangoutButtonText}>🎉 Plan Hangout</Text>
+                  <Text style={styles.neonSolidText}>🎉 Plan Hangout</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
           )}
-        </SafeAreaView>
+        </View>
       </Modal>
 
-      {/* Hangout Options Modal */}
+      {/* Hangout Options Modal (Create/Add) */}
       <Modal
         visible={showHangoutOptions}
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         onRequestClose={() => setShowHangoutOptions(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.optionsModal}>
-            <Text style={styles.optionsTitle}>
+        <View style={styles.glassOverlay}>
+          <View style={styles.glassModal}>
+            <Text style={styles.glassTitle}>
               Plan Hangout with {selectedConnection?.name}
             </Text>
 
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={handleChooseExistingHangout}
-            >
-              <Text style={styles.optionButtonText}>
-                📅 Add to Existing Hangout
-              </Text>
+            <TouchableOpacity style={[styles.darkButton, styles.glassOptionButton]} onPress={handleChooseExistingHangout}>
+              <Text style={styles.glassOptionText}>📅 Add to Existing Hangout</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.optionButton}
-              onPress={handleCreateNewHangout}
-            >
-              <Text style={styles.optionButtonText}>
-                ✨ Create New Hangout
-              </Text>
+            <TouchableOpacity style={[styles.darkButton, styles.neonSolid]} onPress={handleCreateNewHangout}>
+              <Text style={styles.neonSolidText}>✨ Create New Hangout</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowHangoutOptions(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+            <TouchableOpacity style={styles.glassCancelButton} onPress={() => setShowHangoutOptions(false)}>
+              <Text style={styles.glassCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
-      {/* Existing Hangouts Modal */}
+      {/* Existing Hangouts List Modal */}
       <Modal
         visible={showExistingHangouts}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowExistingHangouts(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Choose Existing Hangout</Text>
-            <TouchableOpacity onPress={() => setShowExistingHangouts(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+        <View style={styles.darkModalContainer}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Select Existing Hangout</Text>
+            <TouchableOpacity style={styles.darkCloseButton} onPress={() => setShowExistingHangouts(false)}>
+              <Text style={styles.darkCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.darkModalContent}>
             {existingHangouts.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  No existing hangouts found
-                </Text>
-                <TouchableOpacity
-                  style={styles.createNewButton}
-                  onPress={() => {
-                    setShowExistingHangouts(false);
-                    handleCreateNewHangout();
-                  }}
-                >
-                  <Text style={styles.createNewButtonText}>
-                    Create New Hangout
-                  </Text>
+              <View style={styles.darkEmptyState}>
+                <Text style={styles.darkEmptyText}>No active hangouts available.</Text>
+                <TouchableOpacity style={[styles.darkButton, styles.neonSolid]} onPress={() => {
+                  setShowExistingHangouts(false);
+                  handleCreateNewHangout();
+                }}>
+                  <Text style={styles.neonSolidText}>Create New Hangout</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               existingHangouts.map((hangout) => (
                 <TouchableOpacity
                   key={hangout.id}
-                  style={styles.hangoutCard}
+                  style={styles.darkHangoutCard}
                   onPress={() => handleAddToExistingHangout(hangout)}
                 >
-                  <Text style={styles.hangoutCardTitle}>{hangout.title}</Text>
-                  <Text style={styles.hangoutCardDetails}>
-                    {hangout.date} at {hangout.time}
-                  </Text>
-                  <Text style={styles.hangoutCardDetails}>
-                    {hangout.venue}
-                  </Text>
-                  <Text style={styles.hangoutCardParticipants}>
-                    {hangout.participants.length}/{hangout.maxParticipants}{" "}
-                    participants
-                  </Text>
+                  <Text style={styles.darkHangoutTitle}>{hangout.title}</Text>
+                  <Text style={styles.darkHangoutDetails}>📅 {hangout.date} • {hangout.time}</Text>
+                  <Text style={styles.darkHangoutDetails}>📍 {hangout.venue}</Text>
+                  <View style={styles.cardProgressContainer}>
+                    <Text style={styles.progressText}>
+                      Slots filled: {hangout.participants.length} / {hangout.maxParticipants}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               ))
             )}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* New Hangout Form Modal */}
@@ -710,174 +774,134 @@ export default function GraphScreen({
         presentationStyle="fullScreen"
         onRequestClose={() => setShowNewHangoutForm(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Create New Hangout</Text>
-            <TouchableOpacity onPress={() => setShowNewHangoutForm(false)}>
-              <Text style={styles.closeButton}>✕</Text>
+        <View style={styles.darkModalContainer}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Create Hangout</Text>
+            <TouchableOpacity style={styles.darkCloseButton} onPress={() => setShowNewHangoutForm(false)}>
+              <Text style={styles.darkCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            style={styles.modalContent}
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Hangout Title *</Text>
+          <ScrollView style={styles.darkModalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Hangout Title *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutTitle}
                 onChangeText={setHangoutTitle}
-                placeholder="e.g., Study Session, Movie Night"
-                placeholderTextColor="#999"
+                placeholder="e.g., Rooftop Cafe Jam, Code Sprint"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Date *</Text>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Date *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutDate}
                 onChangeText={setHangoutDate}
-                placeholder="DD/MM/YYYY"
-                placeholderTextColor="#999"
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Time *</Text>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Time *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutTime}
                 onChangeText={setHangoutTime}
-                placeholder="HH:MM AM/PM"
-                placeholderTextColor="#999"
+                placeholder="HH:MM"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Venue *</Text>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Venue *</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={hangoutVenue}
                 onChangeText={setHangoutVenue}
-                placeholder="e.g., Library, Cafe, Park"
-                placeholderTextColor="#999"
+                placeholder="e.g., Nescafe Kiosk, MAC Auditorium"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Maximum Participants</Text>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Maximum Participants</Text>
               <TextInput
-                style={styles.textInput}
+                style={styles.darkTextInput}
                 value={maxParticipants}
                 onChangeText={setMaxParticipants}
-                placeholder="4"
                 keyboardType="numeric"
-                placeholderTextColor="#999"
+                placeholder="4"
+                placeholderTextColor="#666"
               />
             </View>
 
-            <View style={styles.formSection}>
-              <Text style={styles.formLabel}>Invited Participants</Text>
-              <View style={styles.participantsList}>
+            <View style={styles.darkFormSection}>
+              <Text style={styles.darkFormLabel}>Invited Crew</Text>
+              <View style={styles.darkChipList}>
                 {selectedParticipants.map((participant) => (
-                  <View key={participant.id} style={styles.participantChip}>
-                    <Image
-                      source={{ uri: participant.image }}
-                      style={styles.participantImage}
-                    />
-                    <Text style={styles.participantName}>
-                      {participant.name}
-                    </Text>
-                    <TouchableOpacity
-                      onPress={() => toggleParticipant(participant)}
-                      style={styles.removeParticipant}
-                    >
-                      <Text style={styles.removeParticipantText}>×</Text>
+                  <View key={participant.id} style={styles.darkChip}>
+                    <Image source={{ uri: participant.image }} style={styles.darkChipImage} />
+                    <Text style={styles.darkChipText}>{participant.name.split(" ")[0]}</Text>
+                    <TouchableOpacity onPress={() => toggleParticipant(participant)} style={styles.removeChip}>
+                      <Text style={styles.removeChipText}>×</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
               </View>
 
-              <TouchableOpacity
-                style={styles.inviteMoreButton}
-                onPress={() => setShowInviteMore(true)}
-              >
-                <Text style={styles.inviteMoreButtonText}>
-                  + Invite More People
-                </Text>
+              <TouchableOpacity style={styles.dashedAddButton} onPress={() => setShowInviteMore(true)}>
+                <Text style={styles.dashedAddButtonText}>+ Add Connections to Invite</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.createHangoutButton}
-              onPress={handleCreateHangout}
-            >
-              <Text style={styles.createHangoutButtonText}>
-                Create Hangout
-              </Text>
+            <TouchableOpacity style={[styles.darkButton, styles.neonSolid, styles.submitButton]} onPress={handleCreateHangout}>
+              <Text style={styles.neonSolidText}>Broadcast Hangout Invitation</Text>
             </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
-      {/* Invite More People Modal */}
+      {/* Invite Friends Selection Modal */}
       <Modal
         visible={showInviteMore}
         animationType="slide"
         presentationStyle="pageSheet"
         onRequestClose={() => setShowInviteMore(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Invite More People</Text>
-            <TouchableOpacity onPress={() => setShowInviteMore(false)}>
-              <Text style={styles.closeButton}>Done</Text>
+        <View style={styles.darkModalContainer}>
+          <View style={styles.darkModalHeader}>
+            <Text style={styles.darkModalTitle}>Invite Connections</Text>
+            <TouchableOpacity style={styles.darkCloseButton} onPress={() => setShowInviteMore(false)}>
+              <Text style={styles.darkCloseText}>Done</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
-            {connections.map((connection) => {
-              const isSelected = selectedParticipants.find(
-                (p) => p.id === connection.id
-              );
+          <ScrollView style={styles.darkModalContent}>
+            {connections.map((connection, _index) => {
+              const isSelected = selectedParticipants.some((p) => p.id === connection.id);
               return (
                 <TouchableOpacity
-                  key={connection.id ? String(connection.id) : `connection-${index}`}
-                  style={[
-                    styles.connectionItem,
-                    isSelected && styles.selectedConnectionItem,
-                  ]}
+                  key={connection.id ? String(connection.id) : `invite-${_index}`}
+                  style={[styles.darkInviteRow, isSelected && styles.selectedInviteRow]}
                   onPress={() => toggleParticipant(connection)}
                 >
-                  <Image
-                    source={{ uri: connection.image }}
-                    style={styles.connectionImage}
-                  />
-                  <View style={styles.connectionInfo}>
-                    <Text style={styles.connectionName}>
-                      {connection.name}
-                    </Text>
-                    <Text style={styles.connectionBio}>
-                      {connection.bio}
-                    </Text>
+                  <Image source={{ uri: connection.image }} style={styles.inviteAvatar} />
+                  <View style={styles.inviteInfo}>
+                    <Text style={styles.inviteName}>{connection.name}</Text>
+                    <Text style={styles.inviteBio} numberOfLines={1}>{connection.bio || "No bio yet."}</Text>
                   </View>
-                  <View
-                    style={[
-                      styles.checkbox,
-                      isSelected && styles.checkedBox,
-                    ]}
-                  >
-                    {isSelected && (
-                      <Text style={styles.checkmark}>✓</Text>
-                    )}
+                  <View style={[styles.inviteCheckbox, isSelected && styles.inviteChecked]}>
+                    {isSelected && <Text style={styles.checkmarkIcon}>✓</Text>}
                   </View>
                 </TouchableOpacity>
               );
             })}
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -888,375 +912,401 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#0F0F23",
   },
+  center: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#B2B2CC",
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  errorText: {
+    color: "#FF2D8F",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   graphContainer: {
     flex: 1,
-    backgroundColor: "#1A1A2E",
+    backgroundColor: "#080816",
   },
   svg: {
     position: "absolute",
     top: 0,
     left: 0,
   },
-  nodeOverlay: {
-    position: "absolute",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  nodeImage: {
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  nodeName: {
-    color: "black",
-    fontWeight: "600",
-    marginTop: 4,
-    textAlign: "center",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  modalContainer: {
+  // Dark Modal Styles
+  darkModalContainer: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0A0A1C",
   },
-  modalHeader: {
+  darkModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
+  darkModalTitle: {
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
-  closeButton: {
-    fontSize: 18,
-    color: "#636E72",
-    padding: 4,
+  darkCloseButton: {
+    padding: 6,
   },
-  modalContent: {
+  darkCloseText: {
+    fontSize: 20,
+    color: "#8E8EA8",
+    fontWeight: "500",
+  },
+  darkModalContent: {
     flex: 1,
     paddingHorizontal: 20,
   },
-  profileSection: {
+  // Profile Section inside Modal
+  darkProfileSection: {
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: 28,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: "#1A1A36",
   },
-  modalProfileImage: {
+  avatarGlowContainer: {
+    position: "relative",
+    shadowColor: "#00F0FF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  darkProfileImage: {
     width: 100,
     height: 100,
     borderRadius: 50,
     borderWidth: 3,
-    borderColor: "#6C5CE7",
-    marginBottom: 16,
+    borderColor: "#FF2D8F",
   },
-  modalName: {
-    fontSize: 22,
+  degreeBadge: {
+    position: "absolute",
+    bottom: -4,
+    right: -4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#0A0A1C",
+  },
+  degreeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
     fontWeight: "bold",
-    color: "#2D3436",
-    textAlign: "center",
-    marginBottom: 8,
   },
-  modalBio: {
-    fontSize: 16,
-    color: "#636E72",
+  darkName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 16,
     textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 12,
   },
-  mutualBadge: {
-    backgroundColor: "#E3F2FD",
-    paddingHorizontal: 12,
+  darkBio: {
+    fontSize: 14,
+    color: "#B2B2CC",
+    textAlign: "center",
+    lineHeight: 20,
+    marginTop: 10,
+    paddingHorizontal: 15,
+  },
+  darkMutualBadge: {
+    backgroundColor: "rgba(0, 240, 255, 0.08)",
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(0, 240, 255, 0.2)",
+    marginTop: 16,
   },
-  mutualText: {
+  darkMutualText: {
     fontSize: 12,
-    color: "#1976D2",
-    fontWeight: "600",
+    color: "#00F0FF",
+    fontWeight: "700",
   },
-  educationSection: {
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 12,
-  },
-  educationText: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 6,
-  },
-  actionSection: {
+  // Details Section inside Modal
+  darkInfoSection: {
     paddingVertical: 24,
-    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#1A1A36",
   },
-  messageButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
+  darkSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#8E8EA8",
+    marginBottom: 16,
+    letterSpacing: 0.3,
   },
-  messageButtonText: {
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: "#7E7E9A",
+  },
+  infoValue: {
+    fontSize: 14,
     color: "#FFFFFF",
-    fontSize: 16,
     fontWeight: "600",
   },
-  hangoutButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
-    borderRadius: 12,
+  // Actions
+  darkActionSection: {
+    paddingVertical: 28,
+    gap: 14,
+  },
+  darkButton: {
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    height: 52,
   },
-  hangoutButtonText: {
+  primaryOutline: {
+    borderWidth: 1.5,
+    borderColor: "#2A2A4E",
+    backgroundColor: "transparent",
+  },
+  primaryOutlineText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "700",
   },
-  // Hangout Options Modal Styles
-  modalOverlay: {
+  neonSolid: {
+    backgroundColor: "#FF2D8F",
+    shadowColor: "#FF2D8F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  neonSolidText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  // Glass Overlay
+  glassOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(3, 3, 10, 0.75)",
     justifyContent: "center",
     alignItems: "center",
   },
-  optionsModal: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+  glassModal: {
+    backgroundColor: "#111126",
+    borderRadius: 24,
     padding: 24,
     margin: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    width: screenWidth - 40,
+    maxWidth: 340,
+    alignItems: "stretch",
+    borderWidth: 1,
+    borderColor: "#222240",
   },
-  optionsTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 24,
+  glassTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginBottom: 20,
     textAlign: "center",
   },
-  optionButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
+  glassOptionButton: {
+    backgroundColor: "#1C1C3A",
     marginBottom: 12,
-    minWidth: 200,
-    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2C2C54",
   },
-  optionButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  cancelButton: {
-    backgroundColor: "#DDD",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minWidth: 200,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#636E72",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Existing Hangouts Styles
-  emptyState: {
-    alignItems: "center",
-    paddingVertical: 48,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: "#636E72",
-    marginBottom: 20,
-  },
-  createNewButton: {
-    backgroundColor: "#6C5CE7",
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createNewButtonText: {
-    color: "#FFFFFF",
+  glassOptionText: {
+    color: "#E2E8F0",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
   },
-  hangoutCard: {
-    backgroundColor: "#F8F9FA",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: "#6C5CE7",
-  },
-  hangoutCardTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#2D3436",
-    marginBottom: 8,
-  },
-  hangoutCardDetails: {
-    fontSize: 14,
-    color: "#636E72",
-    marginBottom: 4,
-  },
-  hangoutCardParticipants: {
-    fontSize: 12,
-    color: "#00B894",
-    fontWeight: "600",
+  glassCancelButton: {
+    paddingVertical: 14,
+    alignItems: "center",
     marginTop: 8,
   },
-  // Form Styles
-  formSection: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    fontSize: 16,
+  glassCancelText: {
+    color: "#8E8EA8",
+    fontSize: 14,
     fontWeight: "600",
-    color: "#2D3436",
+  },
+  // Existing Hangouts inside Modal
+  darkEmptyState: {
+    alignItems: "center",
+    paddingVertical: 64,
+    gap: 20,
+  },
+  darkEmptyText: {
+    color: "#8E8EA8",
+    fontSize: 15,
+  },
+  darkHangoutCard: {
+    backgroundColor: "#13132B",
+    padding: 18,
+    borderRadius: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#222244",
+  },
+  darkHangoutTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginBottom: 8,
   },
-  textInput: {
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#2D3436",
-    backgroundColor: "#FFFFFF",
+  darkHangoutDetails: {
+    fontSize: 13,
+    color: "#8E8EA8",
+    marginBottom: 4,
   },
-  participantsList: {
+  cardProgressContainer: {
+    marginTop: 10,
+  },
+  progressText: {
+    fontSize: 12,
+    color: "#00F0FF",
+    fontWeight: "600",
+  },
+  // Forms
+  darkFormSection: {
+    marginBottom: 22,
+  },
+  darkFormLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#8E8EA8",
+    marginBottom: 8.5,
+    letterSpacing: 0.2,
+  },
+  darkTextInput: {
+    backgroundColor: "#13132B",
+    borderWidth: 1.5,
+    borderColor: "#1E1E3F",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    fontSize: 14,
+    color: "#FFFFFF",
+  },
+  submitButton: {
+    marginVertical: 24,
+  },
+  // Chips
+  darkChipList: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  participantChip: {
+  darkChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E3F2FD",
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: "#1E1E3F",
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     marginRight: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#2E2E5F",
   },
-  participantImage: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  participantName: {
-    fontSize: 14,
-    color: "#1976D2",
-    fontWeight: "500",
-  },
-  removeParticipant: {
-    marginLeft: 8,
+  darkChipImage: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#FF5252",
-    alignItems: "center",
-    justifyContent: "center",
+    marginRight: 6,
   },
-  removeParticipantText: {
+  darkChipText: {
     color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "600",
   },
-  inviteMoreButton: {
-    backgroundColor: "#F0F0F0",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  removeChip: {
+    marginLeft: 6,
+    width: 16,
+    height: 16,
     borderRadius: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#DDD",
-    borderStyle: "dashed",
-  },
-  inviteMoreButtonText: {
-    color: "#6C5CE7",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  createHangoutButton: {
-    backgroundColor: "#00B894",
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: "center",
-    marginVertical: 24,
-  },
-  createHangoutButtonText: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  // Invite More People Styles
-  connectionItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
-  },
-  selectedConnectionItem: {
-    backgroundColor: "#E3F2FD",
-  },
-  connectionImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    marginRight: 16,
-  },
-  connectionInfo: {
-    flex: 1,
-  },
-  connectionName: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#2D3436",
-    marginBottom: 4,
-  },
-  connectionBio: {
-    fontSize: 14,
-    color: "#636E72",
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#DDD",
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  checkedBox: {
-    backgroundColor: "#6C5CE7",
-    borderColor: "#6C5CE7",
-  },
-  checkmark: {
+  removeChipText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 11,
     fontWeight: "bold",
+  },
+  dashedAddButton: {
+    borderWidth: 1.5,
+    borderColor: "#FF2D8F",
+    borderStyle: "dashed",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: "rgba(255, 45, 143, 0.03)",
+  },
+  dashedAddButtonText: {
+    color: "#FF2D8F",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  // Invite Selection Row
+  darkInviteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#13132B",
+  },
+  selectedInviteRow: {
+    backgroundColor: "rgba(255, 45, 143, 0.03)",
+  },
+  inviteAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 14,
+  },
+  inviteInfo: {
+    flex: 1,
+  },
+  inviteName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    marginBottom: 3,
+  },
+  inviteBio: {
+    fontSize: 12,
+    color: "#7E7E9A",
+  },
+  inviteCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#222240",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteChecked: {
+    backgroundColor: "#FF2D8F",
+    borderColor: "#FF2D8F",
+  },
+  checkmarkIcon: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

@@ -1,6 +1,7 @@
 import Invite from '../models/invite.model.js';
 import User from '../models/user.model.js';
 import Hangout from '../models/hangout.model.js';
+import { neo4jDriver } from '../config/database.js';
 
 export const getInvites = async (req, res) => {
   try {

@@ -9,10 +9,13 @@ export default function RootLayout() {
           headerShown: false,
         }}
       >
+        <Stack.Screen name="index" />
         <Stack.Screen name="welcome" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
         <Stack.Screen name="signup" />
+        <Stack.Screen name="otp-verify" />
+        <Stack.Screen name="connections-select" />
       </Stack>
     </AuthProvider>
   );

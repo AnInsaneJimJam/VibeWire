@@ -1,5 +1,4 @@
 import React from 'react';
-
 import {
   View,
   Text,
@@ -14,7 +13,7 @@ import { router } from 'expo-router';
 export default function WelcomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6C5CE7" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F0F23" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -26,10 +25,9 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <View style={styles.illustration}>
           <Image 
-  source={require('../assets/images/vibewirelogo.png')} 
-  style={styles.illustrationImage}
-/>
-
+            source={require('../assets/images/vibewirelogo.png')} 
+            style={styles.illustrationImage}
+          />
           <Text style={styles.illustrationText}>
             Connect, Plan, Vibe
           </Text>
@@ -71,23 +69,25 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#6C5CE7',
-    paddingHorizontal: 20,
+    backgroundColor: '#0F0F23',
+    paddingHorizontal: 24,
   },
   header: {
     alignItems: 'center',
     marginTop: 60,
   },
   logo: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '900',
+    color: '#00F0FF',
     marginBottom: 8,
+    letterSpacing: 1,
   },
   tagline: {
-    fontSize: 16,
-    color: '#E8E6FF',
+    fontSize: 15,
+    color: '#8E8EA8',
     textAlign: 'center',
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -97,61 +97,59 @@ const styles = StyleSheet.create({
   },
   illustration: {
     alignItems: 'center',
-    marginBottom: 40,
+    marginBottom: 36,
   },
-  emoji: {
-    fontSize: 80,
-    marginBottom: 20,
+  illustrationImage: {
+    width: 210,
+    height: 210,
+    marginBottom: 16,
+    resizeMode: 'contain',
   },
   illustrationText: {
-    fontSize: 24,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '800',
     color: '#FFFFFF',
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   description: {
-    fontSize: 16,
-    color: '#E8E6FF',
+    fontSize: 14,
+    color: '#8E8EA8',
     textAlign: 'center',
-    lineHeight: 24,
-    maxWidth: 300,
+    lineHeight: 22,
+    maxWidth: 290,
   },
   buttonContainer: {
-    marginBottom: 40,
+    marginBottom: 32,
+    gap: 14,
   },
   signupButton: {
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    backgroundColor: '#FF2D8F',
+    paddingVertical: 15,
     borderRadius: 12,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: '#FF2D8F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
   },
   signupButtonText: {
-    color: '#6C5CE7',
-    fontSize: 18,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
     textAlign: 'center',
   },
   loginButton: {
     backgroundColor: 'transparent',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingVertical: 14,
     borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#2E2E5F',
   },
   loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '500',
+    color: '#E2E8F0',
+    fontSize: 15,
+    fontWeight: '700',
     textAlign: 'center',
   },
   footer: {
@@ -159,16 +157,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   footerText: {
-    fontSize: 14,
-    color: '#E8E6FF',
+    fontSize: 12,
+    color: '#6E6E8A',
     textAlign: 'center',
   },
-    illustrationImage: {
-  width: 200,
-  height: 200,
-  marginBottom: 5,
-  resizeMode: 'contain',
-},
-
-  },
-);
+});
